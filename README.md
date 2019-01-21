@@ -1,4 +1,4 @@
-# img2vox2obj
+# vox2stackedsprites
 Simple img2vox converter, using CImg library and naive VOX exporter implementation
 
 [![license zlib](https://img.shields.io/badge/license-zlib-brightgreen.svg?style=flat)](http://zlib.net/zlib_license.html)
