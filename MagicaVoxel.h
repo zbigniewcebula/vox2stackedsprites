@@ -24,7 +24,16 @@ int MV_ID( int a, int b, int c, int d ) {
 //================
 class MV_RGBA {
 public :
-	unsigned char r, g, b, a;
+	union {
+		struct {
+			unsigned char r, g, b, a;
+		};
+		unsigned char raw[4];
+	};
+
+	MV_RGBA() {
+		r = 0; b = 0; g = 0; a = 0;
+	}
 };
 
 //================
@@ -107,6 +116,16 @@ public :
 		}
 		
 		return success;
+	}
+
+	unsigned char ReadVoxel(int x, int y, int z) {
+		for(int i = 0; i < numVoxels; ++i) {
+			MV_Voxel&	v = voxels[i];
+			if(v.x == x && v.y == y && v.z == z) {
+				return v.colorIndex;
+			}
+		}
+		return 0;
 	}
 	
 private :
@@ -193,9 +212,11 @@ private :
 		}
 		
 		// print model info
+		/*
 		printf( "[Log] MV_VoxelModel :: Model : %d %d %d : %d\n",
 			   sizex, sizey, sizez, numVoxels
 			   );
+		*/
 		
 		return true;
 	}
@@ -211,10 +232,12 @@ private :
 		
 		// print chunk info
 		const char *c = ( const char * )( &chunk.id );
+		/*
 		printf( "[Log] MV_VoxelModel :: Chunk : %c%c%c%c : %d %d\n",
 			   c[0], c[1], c[2], c[3],
 			   chunk.contentSize, chunk.childrenSize
 			   );
+		*/
 	}
 	
 	int ReadInt( FILE *fp ) {

@@ -1,2 +1,2 @@
 #!/bin/bash
-g++ --std=c++11 main.cpp _main
+g++ main.cpp --std=c++11 -L/usr/X11R6/lib -lm -lpthread -lX11 -o _main
