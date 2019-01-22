@@ -1,5 +1,14 @@
 # vox2stackedsprites
-Simple img2vox converter, using CImg library and naive VOX exporter implementation
+Simple converter that breaks up VOX file into PNG layers for stacked layers technique
+
+TODO:
+* Compilation for Windows (e.g. MingGW/Cygwin)
+* Make sure that app uses alpha channel in PNG images
+
+OPTIONAL TODO:
+* Other output formats
+* Sprite sheet
+* CImg preview of "stacked sprites" + rotation
 
 [![license zlib](https://img.shields.io/badge/license-zlib-brightgreen.svg?style=flat)](http://zlib.net/zlib_license.html)
 
