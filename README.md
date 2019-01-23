@@ -2,10 +2,17 @@
 Simple converter that breaks up VOX file into PNG layers for stacked layers technique
 
 TODO:
-* Make sure that app uses alpha channel in PNG images
-
-OPTIONAL TODO:
+* Add "-r" revese flag, takes layers and outputs VOX file
 * Sprite sheet
+* Use LibPNG for Windows compilation
+* Refactor MagicaVoxel.h to be more "C++ like"
+
+Dependencies:
+ - Linux
+	* libx11-dev
+	* libpng-dev
+ - Windows
+ 	* libpng
 
 [![license zlib](https://img.shields.io/badge/license-zlib-brightgreen.svg?style=flat)](http://zlib.net/zlib_license.html)
 

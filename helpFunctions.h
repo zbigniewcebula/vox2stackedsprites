@@ -27,6 +27,10 @@ bool startsWith(const string& haystack, const string& needle) {
 	return	needle.length() <= haystack.length() 
 	&&		equal(needle.begin(), needle.end(), haystack.begin());
 }
+bool endsWith(const string& haystack, const string& needle) {
+	return	needle.length() <= haystack.length() 
+	&&		equal(needle.rbegin(), needle.rend(), haystack.rbegin());
+}
 
 bool dirExists(string path) {
 	struct stat info;

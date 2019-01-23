@@ -4,12 +4,15 @@
 #include <sstream>
 #include <string>
 #include <vector>
+#include <thread>
 
 #include <cctype>
 #include <cstdio>
 
+#define cimg_use_png
 #include "CImg.h"
 #include "MagicaVoxel.h"
+#include "png.h"
 
 #include "helpFunctions.h"
 #include "ParamsManager.h"
@@ -34,6 +37,7 @@ int main(int argc, char** argv) {
 	paramManager.addParam("-of", "--outformat", "Sets format of output layers files", "FORMAT");
 	paramManager.addParam("-f", "--formats", "Shows available formats", "");
 	paramManager.addParam("-d", "--display", "Displays output product (WIP)", "SCALE");
+	paramManager.addParam("-r", "--reverse", "Reverses process, uses OUTPUT ot generate INPUT", "");
 	if(paramManager.process(argc, argv) == false) {
 		return 1;
 	}
@@ -62,7 +66,7 @@ int main(int argc, char** argv) {
 		return 1;
 	}
 
-	//Completing pats
+	//Completing paths
 	string	outputPath	= paramManager.getValueOf("-o");
 	if(outputPath == "") {
 		outputPath	= argv[0];
@@ -111,10 +115,14 @@ int main(int argc, char** argv) {
 		}
 	);
 	if(naiveType != "vox") {
-		cerr	<< "Input file is not a VOX file! Aborting..." << endl;
+		if(paramManager.getValueOf("-r") != "") {
+			cerr	<< "Final file has not a VOX extension! Aborting..." << endl;
+		} else {
+			cerr	<< "Input file is not a VOX file! Aborting..." << endl;
+		}
 		return 1;
 	}
-
+	
 	//Loading files
 	MV_Model vox;
 	if(not vox.LoadModel(input.c_str())) {
@@ -138,7 +146,7 @@ int main(int argc, char** argv) {
 			cout	<< '|';
 		}
 		/////////////////////////////////////////////
-		layers.push_back(new CImg<unsigned char>(vox.sizex, vox.sizey, 1, 3, 0));
+		layers.push_back(new CImg<unsigned char>(vox.sizex, vox.sizey, 1, 4, 0));
 		CImg<unsigned char>& layer	= *(layers.back());
 		for(int y = 0; y < vox.sizey; ++y) {
 			for(int x = 0; x < vox.sizex; ++x) {
@@ -160,6 +168,7 @@ int main(int argc, char** argv) {
 
 	cout	<< "\nDone (" << vox.sizez << " layers)!" << endl;
 
+
 	if(paramManager.getValueOf("-d") != "") {
 		//Preparing helping variables
 		int	baseZoom		= stoi(paramManager.getValueOf("-d"));
@@ -173,9 +182,9 @@ int main(int argc, char** argv) {
 		int	winSizeX	= vox.sizex * 2 * baseZoom;
 		int	winSizeY	= vox.sizey * 2 * baseZoom;
 
-		//Screen buffer and window
-		CImg<unsigned char> screen(winSizeX, winSizeY, 1, 3, 0);
-		CImgDisplay	window(screen, string("Display of: " + input).c_str(), 3, false, false);
+		//(*Screen) buffer and window
+		CImg<unsigned char>* screen	= new CImg<unsigned char>(winSizeX, winSizeY, 1, 3, 0);
+		CImgDisplay	window(*screen, string("Display of: " + input).c_str(), 3, false, false);
 
 		//Temp variables
 		const unsigned int saveShortcut[] = {
@@ -195,10 +204,30 @@ int main(int argc, char** argv) {
 		int helpMenuX		= 1;
 		int helpMenuY		= winSizeY - 80;
 
+		struct OptionKeyPair
+		{
+			public:
+				string	option;
+				string	key;
+
+				OptionKeyPair() {}
+				OptionKeyPair(string opt, string k)
+					:	option(opt), key(k)
+				{}
+		};
+		vector<OptionKeyPair>	options;
+		options.emplace_back("Help", "[H][F1]");
+		options.emplace_back("Rotate", "[SPACE]");
+		options.emplace_back("Move", "[ARROWS]");
+		options.emplace_back("Zoom", "[SCROLLWHEEL]");
+		options.emplace_back("Layer", "[PGUP/PGDOWN]");
+		options.emplace_back("Screenshot", "[CTRL+S]");
+		options.emplace_back("Exit", "[ESC]");
+
 		//Main loop of window
 		while(true) {
 			//Clear
-			screen.fill(255);
+			screen->fill(255);
 
 			//Display layers
 			z	= 0;
@@ -211,19 +240,19 @@ int main(int argc, char** argv) {
 						pixel.g	= layer.atXY(x, y, 0, 1);
 						pixel.b	= layer.atXY(x, y, 0, 2);
 						pixel.a	= layer.atXY(x, y, 0, 3);
-						if(pixel.r == 0 and pixel.g == 0 and pixel.b == 0) {
+						if(pixel.a == 0) {
 							continue;
 						}
 						for(int Y = 0; Y < pxZoom; ++Y) {
 							for(int X = 0; X < pxZoom; ++X) {
 								tempX	= (winSizeX / 2) - ((layer.width() * pxZoom) / 2) + (
-									(x + offX) * pxZoom
-								) + X;
+									x * pxZoom
+								) + X + offX;
 								tempY	= (3 * winSizeY / 4) + ((layer.height() * pxZoom) / 2) - (
-									((y + offY) * pxZoom) + (z * pxZoom) + Y
-								);
+									(y * pxZoom) + (z * pxZoom) + Y
+								) + offY;
 								if(tempX > -1 && tempY > -1 && tempX < winSizeX && tempY < winSizeY) {
-									screen.draw_point(tempX, tempY, 0, pixel.raw, 1);
+									screen->draw_point(tempX, tempY, 0, pixel.raw, 1);
 								}
 							}
 						}
@@ -239,28 +268,26 @@ int main(int argc, char** argv) {
 				pixel.r	= 0;
 				pixel.g	= 0;
 				pixel.b	= 0;
-				pixel.a	= 1;
-				screen.draw_text(0, 0, string("Zoom: " + tostring(pxZoom)).c_str(), pixel.raw, 0, 1, 12);
-				screen.draw_text(0, 14, string("Z: " + tostring(stopZ)).c_str(), pixel.raw, 0, 1, 12);
-				screen.draw_text(0, 28, string(
+				pixel.a	= 255;
+				screen->draw_text(0, 0, string("Zoom: " + tostring(pxZoom)).c_str(), pixel.raw, 0, 1, 12);
+				screen->draw_text(0, 14, string("Z: " + tostring(stopZ)).c_str(), pixel.raw, 0, 1, 12);
+				screen->draw_text(0, 28, string(
 						"Offset: (" + tostring(offX) + "; " + tostring(offY) + ")"
 					).c_str(), pixel.raw, 0, 1, 12
 				);
 
-				screen.draw_text(helpMenuX, helpMenuY,		"Help		[H][F1]", pixel.raw, 0, 1, 10);
-				screen.draw_text(helpMenuX, helpMenuY + 11,	"Rotate		[SPACE]", pixel.raw, 0, 1, 10);
-				screen.draw_text(helpMenuX, helpMenuY + 22,	"Move		[ARROWS]", pixel.raw, 0, 1, 10);
-				screen.draw_text(helpMenuX, helpMenuY + 33,	"Zoom		[SCROLLWHEEL]", pixel.raw, 0, 1, 10);
-				screen.draw_text(helpMenuX, helpMenuY + 44,	"Layer		[PGUP/PGDOWN]", pixel.raw, 0, 1, 10);
-				screen.draw_text(helpMenuX, helpMenuY + 55,	"Screenshot	[CTRL+S]", pixel.raw, 0, 1, 10);
-				screen.draw_text(helpMenuX, helpMenuY + 66,	"Exit		[ESC]", pixel.raw, 0, 1, 10);
+				helpMenuY		= winSizeY - options.size() * 12;
+				int	yMenu		= 0;
+				for(OptionKeyPair o : options) {
+					screen->draw_text(helpMenuX, helpMenuY + (yMenu * 11), o.option.c_str(), pixel.raw, 0, 1, 10);
+					screen->draw_text(helpMenuX + 80, helpMenuY + (yMenu * 11), o.key.c_str(), pixel.raw, 0, 1, 10);
+					++yMenu;
+				}
 			}
 
 			//Render
-			window.display(screen);
+			window.display(*screen);
 			window.paint();
-
-			window.wait();
 
 			//Rotation
 			if(window.is_key(cimg::keySPACE)) {
@@ -301,33 +328,38 @@ int main(int argc, char** argv) {
 
 			//Offset
 			if(window.is_key(cimg::keyARROWUP)) {
-				offY	+= 1;
+				offY	-= winSizeY / 20;
 			}
 			if(window.is_key(cimg::keyARROWDOWN)) {
-				offY	-= 1;
+				offY	+= winSizeY / 20;
 			}
 			if(window.is_key(cimg::keyARROWLEFT)) {
-				offX	-= 1;
+				offX	-= winSizeX / 20;
 			}
 			if(window.is_key(cimg::keyARROWRIGHT)) {
-				offX	+= 1;
+				offX	+= winSizeX / 20;
 			}
-			if(offX < -(vox.sizex / pxZoom * 3)) {
-				offX = -(vox.sizex / pxZoom * 3);
+			if(offX < -(winSizeX / 2)) {
+				offX = -(winSizeX / 2);
 			}
-			if(offX > (vox.sizex / pxZoom * 3)) {
-				offX = (vox.sizex / pxZoom * 3);
+			if(offX > (winSizeX / 2)) {
+				offX = (winSizeX / 2);
 			}
-			if(offY < -(vox.sizey / pxZoom * 3)) {
-				offY = -(vox.sizey / pxZoom * 3);
+			if(offY < -(winSizeY / 2)) {
+				offY = -(winSizeY / 2);
 			}
-			if(offY > (vox.sizey / pxZoom * 3)) {
-				offY = (vox.sizey / pxZoom * 3);
+			if(offY > (winSizeY / 2)) {
+				offY = (winSizeY / 2);
 			}
 
 			//Window resize lock
 			if(window.is_resized()) {
+				winSizeX	= window.window_width();
+				winSizeY	= window.window_width();
 				window.resize(winSizeX, winSizeY, true);
+
+				delete	screen;
+				screen		= new CImg<unsigned char>(winSizeX, winSizeY, 1, 3, 0);
 			}
 
 			//Rest
@@ -337,9 +369,13 @@ int main(int argc, char** argv) {
 			if(window.is_key_sequence(saveShortcut, 2)) {
 				CImg<unsigned char>	screenShot(winSizeX, winSizeY, 0, 3);
 				window.snapshot(screenShot);
-				screenShot.save((outputPath + "SCREENSHOT.png").c_str());
+				screenShot.save((outputPath + "SNAPSHOT.png").c_str());
 			}
+
+			//Delaying window event reaction
+			this_thread::sleep_for(50ms);
 		}
+		delete	screen;
 	}
 
 	//Clean out and peace out

@@ -1,7 +1,7 @@
 #!/bin/bash
-INCLUDE=""
-LIBS="-L/usr/X11R6/lib"
-LIBS_FLAG="-lm -lpthread -lX11"
+INCLUDE="-I/usr/include/libpng16"
+LIBS="-L/usr/X11R6/lib -L/usr/local/lib "
+LIBS_FLAG="-lm -lpthread -lX11 -lpng"
 g++ main.cpp -Wall -Wno-unused-result --std=c++17 -O3 $INCLUDE $LIBS $LIBS_FLAG -o _main
 echo Done!
 exit

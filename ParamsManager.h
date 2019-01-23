@@ -87,7 +87,7 @@ class ParamsManager {
 		void printHelp() {
 			cout	<< "Usage: vox2stackedsprites INPUT_FILE [OPTION [VALUE]]\n"
 					<< "Break up VOX file into separated PNG files as layers along Z-axis\n\n"
-					<< "Available options:";
+					<< "Available options:\n";
 			printList();
 			cout	<< "\n\nFor more visit: https://github.com/zbigniewcebula/vox2stackedsprites"
 					<< endl;
@@ -107,7 +107,7 @@ class ParamsManager {
 					} else if((*lastParam) == "-h") {
 						printHelp();
 						return false;
-					} else if((*lastParam) == "-f") {
+					} else if((*lastParam) == "-f" || (*lastParam) == "-r") {
 						(*lastParam).value	= ".";
 					} else if((*lastParam).value != "") {
 						cerr	<< "Parameter \"" << tempStr << "\" used multiple times! Aborting..." << endl;
