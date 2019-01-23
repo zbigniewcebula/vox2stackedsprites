@@ -1,2 +1,7 @@
 #!/bin/bash
-g++ main.cpp --std=c++11 -L/usr/X11R6/lib -lm -lpthread -lX11 -o _main
+INCLUDE=""
+LIBS="-L/usr/X11R6/lib"
+LIBS_FLAG="-lm -lpthread -lX11"
+g++ main.cpp -Wall -Wno-unused-result --std=c++17 -O3 $INCLUDE $LIBS $LIBS_FLAG -o _main
+echo Done!
+exit

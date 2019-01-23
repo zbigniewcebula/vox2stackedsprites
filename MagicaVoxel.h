@@ -231,8 +231,8 @@ private :
 		chunk.end = ftell( fp ) + chunk.contentSize + chunk.childrenSize;
 		
 		// print chunk info
-		const char *c = ( const char * )( &chunk.id );
 		/*
+		const char* c = (const char *)( &chunk.id );
 		printf( "[Log] MV_VoxelModel :: Chunk : %c%c%c%c : %d %d\n",
 			   c[0], c[1], c[2], c[3],
 			   chunk.contentSize, chunk.childrenSize

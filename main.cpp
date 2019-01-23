@@ -1,47 +1,109 @@
 #include <iostream>
-#include <sstream>
 #include <algorithm>
+#include <iomanip>
+#include <sstream>
 #include <string>
+#include <vector>
+
 #include <cctype>
 #include <cstdio>
 
 #include "CImg.h"
 #include "MagicaVoxel.h"
 
+#include "helpFunctions.h"
+#include "ParamsManager.h"
+
 using namespace std;
 using namespace cimg_library;
 
-bool fileExists(const char* path);
-string tostring(int number);
+void help();
 
 int main(int argc, char** argv) {
 	//Checking args
-	if(argc == 1) {
-		cerr	<< "No file path given! Aborting..." << endl;
+	if(argc <= 1) {
+		cerr	<< "No parameters given! Aborting..." << endl;
 		return 1;
 	}
-	if(not fileExists(argv[1])) {
+
+	//Listing args and proccessing parameters/flags
+	ParamsManager	paramManager;
+	paramManager.addParam("-h", "--help", "Shows help", "");
+	paramManager.addParam("-o", "--out", "Sets path for output files", "DIRECTORY");
+	paramManager.addParam("-i", "--in", "Sets path for input file", "INTPUT_PATH");
+	paramManager.addParam("-of", "--outformat", "Sets format of output layers files", "FORMAT");
+	paramManager.addParam("-f", "--formats", "Shows available formats", "");
+	paramManager.addParam("-d", "--display", "Displays output product (WIP)", "SCALE");
+	if(paramManager.process(argc, argv) == false) {
+		return 1;
+	}
+
+	//Formats
+	vector<string>	formats;
+	formats.push_back("png");
+	formats.push_back("gif");
+	formats.push_back("bmp");
+	formats.push_back("asc");
+	formats.push_back("ppm");
+	formats.push_back("pgm");
+	if(paramManager.getValueOf("-f") != "") {
+		cout	<< "Avaiable formats: " << '\n';
+		for(string format : formats) {
+			cout	<< '\t' << format << '\n';
+		}
+		cout	<< flush;
+		return 0;
+	}
+
+	//Checking input file
+	string	input		= paramManager.getValueOf("-i");
+	if(not fileExists(input)) {
 		cerr	<< "Input file does not exists! Aborting..." << endl;
 		return 1;
 	}
 
 	//Completing pats
-	string	path		= argv[1];
-	string	appPath		= argv[0];
-	size_t	slash		= appPath.find_last_of('\\');
-	if(slash == -1) {
-		slash	= appPath.find_last_of('/');
-		if(slash == -1) {
-			appPath.clear();
+	string	outputPath	= paramManager.getValueOf("-o");
+	if(outputPath == "") {
+		outputPath	= argv[0];
+		size_t	slash		= outputPath.find_last_of('\\');
+		if(slash == string::npos) {
+			slash	= outputPath.find_last_of('/');
+			if(slash == string::npos) {
+				outputPath.clear();
+			} else {
+				outputPath	= outputPath.substr(0, slash - 1);
+			}
 		} else {
-			appPath	= appPath.substr(0, slash - 1);
+			outputPath	= outputPath.substr(0, slash - 1);
 		}
 	} else {
-		appPath	= appPath.substr(0, slash - 1);
+		if(dirExists(outputPath) == false) {
+			cerr	<< "Incorrect output path! Aborting..." << endl;
+			return 1;
+		}
+		if(outputPath.back() != '/' && outputPath.back() != '\\') {
+			outputPath.append(1, '/');
+		}
 	}
-	
+
+	//Output format check
+	string	outFormat	= paramManager.getValueOf("-of");
+	if(outFormat == "") {
+		outFormat	= formats[0];
+	} else {
+		transform(
+			outFormat.begin(), outFormat.end(), outFormat.begin(), 
+			[](unsigned char c) -> unsigned char { return tolower(c); }
+		);
+		if(find(formats.begin(), formats.end(), outFormat) == formats.end()) {
+			cerr	<< "Incorrect output format! Aborting..." << endl;
+			return 1;
+		}
+	}
+
 	//Cuz I'm lazy
-	string	naiveType	= path.substr(path.length() - 3);
+	string	naiveType	= input.substr(input.length() - 3);
 	transform(
 		naiveType.begin(), naiveType.end(),
 		naiveType.begin(), [](unsigned char c) -> unsigned char {
@@ -55,7 +117,7 @@ int main(int argc, char** argv) {
 
 	//Loading files
 	MV_Model vox;
-	if(not vox.LoadModel(path.c_str())) {
+	if(not vox.LoadModel(input.c_str())) {
 		cerr	<< "VOX file is incorrect! Aborting..." << endl;
 		return 1;
 	}
@@ -68,6 +130,7 @@ int main(int argc, char** argv) {
 	cout	<< ']' << flush;
 	MV_RGBA			pixel;
 	unsigned char	paletteIdx;
+	vector<CImg<unsigned char>*>	layers;
 	for(int z = 0; z < vox.sizez; ++z) {
 		/////////////////////////////////////////////
 		cout	<< "\rProcessing[";
@@ -75,7 +138,8 @@ int main(int argc, char** argv) {
 			cout	<< '|';
 		}
 		/////////////////////////////////////////////
-		CImg<unsigned char> layer(vox.sizex, vox.sizey, 1, 3, 0);
+		layers.push_back(new CImg<unsigned char>(vox.sizex, vox.sizey, 1, 3, 0));
+		CImg<unsigned char>& layer	= *(layers.back());
 		for(int y = 0; y < vox.sizey; ++y) {
 			for(int x = 0; x < vox.sizex; ++x) {
 				paletteIdx	= vox.ReadVoxel(x, y, z);
@@ -85,30 +149,202 @@ int main(int argc, char** argv) {
 					pixel.r	= vox.palette[paletteIdx].r;
 					pixel.g	= vox.palette[paletteIdx].g;
 					pixel.b	= vox.palette[paletteIdx].b;
-					pixel.a	= 1;
+					pixel.a	= 255;
 				}
 				layer.draw_point(x, y, 0, pixel.raw, pixel.a);
 			}
 		}
 		cout << flush;
-		layer.save((appPath + ".png").c_str(), z, 3);
+		layer.save((outputPath + "LAYER." + outFormat).c_str(), z, 3);
 	}
 
 	cout	<< "\nDone (" << vox.sizez << " layers)!" << endl;
-	return 0;
-}
 
-bool fileExists(const char* path) {
-	FILE*	handle	= fopen(path, "r");
-	if(handle == nullptr) {
-		return false;
+	if(paramManager.getValueOf("-d") != "") {
+		//Preparing helping variables
+		int	baseZoom		= stoi(paramManager.getValueOf("-d"));
+		int pxZoom			= 0;
+		if(baseZoom < 1) {
+			baseZoom = 1;
+		}
+		if(baseZoom > 10) {
+			baseZoom = 10;
+		}
+		int	winSizeX	= vox.sizex * 2 * baseZoom;
+		int	winSizeY	= vox.sizey * 2 * baseZoom;
+
+		//Screen buffer and window
+		CImg<unsigned char> screen(winSizeX, winSizeY, 1, 3, 0);
+		CImgDisplay	window(screen, string("Display of: " + input).c_str(), 3, false, false);
+
+		//Temp variables
+		const unsigned int saveShortcut[] = {
+			cimg::keyCTRLLEFT, cimg::keyS
+		};
+		int	z;
+		int	stopZ	= layers.size() - 1;
+
+		int	angle	= 0;
+		int	tempX	= 0;
+		int	tempY	= 0;
+
+		int	offX	= 0;
+		int	offY	= 0;
+
+		bool displayHelp	= false;
+		int helpMenuX		= 1;
+		int helpMenuY		= winSizeY - 80;
+
+		//Main loop of window
+		while(true) {
+			//Clear
+			screen.fill(255);
+
+			//Display layers
+			z	= 0;
+			for(CImg<unsigned char>* l : layers) {
+				CImg<unsigned char>	layer(*l);
+				layer.rotate(angle, layer.width() / 2, layer.height() / 2);
+				for(int y = 0; y < layer.height(); ++y) {
+					for(int x = 0; x < layer.width(); ++x) {
+						pixel.r	= layer.atXY(x, y, 0, 0);
+						pixel.g	= layer.atXY(x, y, 0, 1);
+						pixel.b	= layer.atXY(x, y, 0, 2);
+						pixel.a	= layer.atXY(x, y, 0, 3);
+						if(pixel.r == 0 and pixel.g == 0 and pixel.b == 0) {
+							continue;
+						}
+						for(int Y = 0; Y < pxZoom; ++Y) {
+							for(int X = 0; X < pxZoom; ++X) {
+								tempX	= (winSizeX / 2) - ((layer.width() * pxZoom) / 2) + (
+									(x + offX) * pxZoom
+								) + X;
+								tempY	= (3 * winSizeY / 4) + ((layer.height() * pxZoom) / 2) - (
+									((y + offY) * pxZoom) + (z * pxZoom) + Y
+								);
+								if(tempX > -1 && tempY > -1 && tempX < winSizeX && tempY < winSizeY) {
+									screen.draw_point(tempX, tempY, 0, pixel.raw, 1);
+								}
+							}
+						}
+					}
+				}
+				++z;
+				if(z >= stopZ) {
+					break;
+				}
+			}
+			//Display help
+			if(displayHelp) {
+				pixel.r	= 0;
+				pixel.g	= 0;
+				pixel.b	= 0;
+				pixel.a	= 1;
+				screen.draw_text(0, 0, string("Zoom: " + tostring(pxZoom)).c_str(), pixel.raw, 0, 1, 12);
+				screen.draw_text(0, 14, string("Z: " + tostring(stopZ)).c_str(), pixel.raw, 0, 1, 12);
+				screen.draw_text(0, 28, string(
+						"Offset: (" + tostring(offX) + "; " + tostring(offY) + ")"
+					).c_str(), pixel.raw, 0, 1, 12
+				);
+
+				screen.draw_text(helpMenuX, helpMenuY,		"Help		[H][F1]", pixel.raw, 0, 1, 10);
+				screen.draw_text(helpMenuX, helpMenuY + 11,	"Rotate		[SPACE]", pixel.raw, 0, 1, 10);
+				screen.draw_text(helpMenuX, helpMenuY + 22,	"Move		[ARROWS]", pixel.raw, 0, 1, 10);
+				screen.draw_text(helpMenuX, helpMenuY + 33,	"Zoom		[SCROLLWHEEL]", pixel.raw, 0, 1, 10);
+				screen.draw_text(helpMenuX, helpMenuY + 44,	"Layer		[PGUP/PGDOWN]", pixel.raw, 0, 1, 10);
+				screen.draw_text(helpMenuX, helpMenuY + 55,	"Screenshot	[CTRL+S]", pixel.raw, 0, 1, 10);
+				screen.draw_text(helpMenuX, helpMenuY + 66,	"Exit		[ESC]", pixel.raw, 0, 1, 10);
+			}
+
+			//Render
+			window.display(screen);
+			window.paint();
+
+			window.wait();
+
+			//Rotation
+			if(window.is_key(cimg::keySPACE)) {
+				angle += 45;
+				if(angle >= 360) {
+					angle	= 0;
+				}
+
+			}
+
+			//Zoom control
+			pxZoom	= baseZoom + window.wheel(); 
+			if(pxZoom < 1) {
+				pxZoom = 1;
+			}
+			if(pxZoom > 20) {
+				pxZoom = 20;
+			}
+
+			//Help
+			if(window.is_key(cimg::keyH) || window.is_key(cimg::keyF1)) {
+				displayHelp	= !displayHelp;
+			}
+
+			//Layers control
+			if(window.is_key(cimg::keyPAGEUP)) {
+				stopZ += 1;
+				if(size_t(stopZ) >= layers.size()) {
+					stopZ	= layers.size() - 1;
+				}
+			}
+			if(window.is_key(cimg::keyPAGEDOWN)) {
+				stopZ -= 1;
+				if(stopZ < 1) {
+					stopZ	= 1;
+				}
+			}
+
+			//Offset
+			if(window.is_key(cimg::keyARROWUP)) {
+				offY	+= 1;
+			}
+			if(window.is_key(cimg::keyARROWDOWN)) {
+				offY	-= 1;
+			}
+			if(window.is_key(cimg::keyARROWLEFT)) {
+				offX	-= 1;
+			}
+			if(window.is_key(cimg::keyARROWRIGHT)) {
+				offX	+= 1;
+			}
+			if(offX < -(vox.sizex / pxZoom * 3)) {
+				offX = -(vox.sizex / pxZoom * 3);
+			}
+			if(offX > (vox.sizex / pxZoom * 3)) {
+				offX = (vox.sizex / pxZoom * 3);
+			}
+			if(offY < -(vox.sizey / pxZoom * 3)) {
+				offY = -(vox.sizey / pxZoom * 3);
+			}
+			if(offY > (vox.sizey / pxZoom * 3)) {
+				offY = (vox.sizey / pxZoom * 3);
+			}
+
+			//Window resize lock
+			if(window.is_resized()) {
+				window.resize(winSizeX, winSizeY, true);
+			}
+
+			//Rest
+			if(window.is_keyESC() || window.is_closed()) {
+				break;
+			}
+			if(window.is_key_sequence(saveShortcut, 2)) {
+				CImg<unsigned char>	screenShot(winSizeX, winSizeY, 0, 3);
+				window.snapshot(screenShot);
+				screenShot.save((outputPath + "SCREENSHOT.png").c_str());
+			}
+		}
 	}
-	fclose(handle);
-	return true;
-}
 
-string tostring(int number) {
-	stringstream ss;
-	ss	<< number;
-	return ss.str();
+	//Clean out and peace out
+	for(CImg<unsigned char>* layer : layers) {
+		delete	layer;
+	}
+	return 0;
 }
