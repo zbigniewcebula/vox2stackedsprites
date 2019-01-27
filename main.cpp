@@ -16,7 +16,7 @@
 
 #define cimg_use_png
 #include "CImg.h"
-#include "MagicaVoxel.h"
+#include "VOX.h"
 #include "png.h"
 
 #include "helpFunctions.h"
@@ -106,9 +106,7 @@ int main(int argc, char** argv) {
 	}
 
 	//Cuz I'm lazy - naive cheking VOX file type
-	string	naiveType	= input.substr(input.length() - 3);
-	naiveType = tolower(naiveType);
-	if(naiveType != "vox") {
+	if(string naiveType = tolower(input.substr(input.length() - 3)); naiveType != "vox") {
 		if(outputReversed == true) {
 			cerr	<< "Final file has not a VOX extension! Aborting..." << endl;
 		} else {
@@ -131,10 +129,10 @@ int main(int argc, char** argv) {
 	}
 	
 	//Loading files
-	MV_Model vox;
+	VOXModel vox;
 	vector<CImg<unsigned char>*>	layers;
 
-	MV_RGBA		tempColor;
+	vec4	tempColor;
 
 	if(outputReversed) {
 		//From layer files to VOX file
@@ -189,13 +187,13 @@ int main(int argc, char** argv) {
 				if(z == 0) {
 					vox.SetSize(layer->width(), layer->height(), layers.size());
 					cout	<< "Processing[";
-					for(int _z = 0; _z < vox.sizez; ++_z) {
+					for(int _z = 0; _z < vox.SizeZ(); ++_z) {
 						cout	<< '_';
 					}
 					cout	<< ']' << flush;
 				}
-				if(layer->width() not_eq vox.sizex
-				or layer->height() not_eq vox.sizey
+				if(layer->width() not_eq vox.SizeX()
+				or layer->height() not_eq vox.SizeY()
 				) {
 					cerr	<< "Layer '" << layerFile[z]
 							<< "' size is not same as first layer! Aborting..."
@@ -221,7 +219,7 @@ int main(int argc, char** argv) {
 								//If exists checking if palette limit is not reached
 								if(paletteID < 256) {
 									//Adding color to palette
-									vox.WritePalette(paletteID, tempColor);
+									vox.SetPaletteColor(paletteID, tempColor);
 									tempIdx	= ++paletteID;
 								} else {
 									cerr	<< "Too many colors! "
@@ -235,7 +233,7 @@ int main(int argc, char** argv) {
 								++tempIdx;
 							}
 							//Writing voxel with determined color from palette
-							vox.WriteVoxel(x, y, z, tempIdx);
+							vox.SetVoxel(x, y, z, tempIdx);
 						}
 					}
 					/////////////////////////////////////////////
@@ -254,33 +252,30 @@ int main(int argc, char** argv) {
 			<< endl;
 			return 1;
 		}
-		vox.SaveModel(input);
+		vox.Save(input);
 	} else {
 		//From VOX into layers
-		if(not vox.LoadModel(input.c_str())) {
+		if(not vox.Load(input.c_str())) {
 			cerr	<< "VOX file is incorrect! Aborting..." << endl;
 			return 1;
 		}
 
 		//Copying voxels into layer and saving it as PNG file
 		cout	<< "Processing[";
-		for(int z = 0; z < vox.sizez; ++z) {
+		for(int z = 0; z < vox.SizeZ(); ++z) {
 			cout	<< '_';
 		}
 		cout	<< ']' << flush;
-		unsigned char	paletteID;
-		for(int z = 0; z < vox.sizez; ++z) {
-			layers.push_back(new CImg<unsigned char>(vox.sizex, vox.sizey, 1, 4, 0));
+		
+		for(int z = 0; z < vox.SizeZ(); ++z) {
+			layers.push_back(new CImg<unsigned char>(vox.SizeX(), vox.SizeY(), 1, 4, 0));
 			CImg<unsigned char>& layer	= *(layers.back());
-			for(int y = 0; y < vox.sizey; ++y) {
-				for(int x = 0; x < vox.sizex; ++x) {
-					paletteID	= vox.ReadVoxel(x, y, z);
-					if(paletteID == 0) {
+			for(int y = 0; y < vox.SizeY(); ++y) {
+				for(int x = 0; x < vox.SizeX(); ++x) {
+					if(unsigned char paletteID = vox.VoxelColorID(x, y, z); paletteID == 0) {
 						tempColor.a	= 0;
 					} else {
-						tempColor.r	= vox.palette[paletteID].r;
-						tempColor.g	= vox.palette[paletteID].g;
-						tempColor.b	= vox.palette[paletteID].b;
+						tempColor	= vox.PaletteColor(paletteID);
 						tempColor.a	= 255;
 					}
 					layer.draw_point(x, y, 0, tempColor.raw, tempColor.a);
@@ -298,7 +293,7 @@ int main(int argc, char** argv) {
 		}
 	}
 
-	cout	<< "\nDone (" << vox.sizez << " layers)!" << endl;
+	cout	<< "\nDone (" << vox.SizeZ() << " layers)!" << endl;
 
 	if(paramManager.getValueOf("-d") != "") {
 		//Preparing helping variables
@@ -310,8 +305,8 @@ int main(int argc, char** argv) {
 		if(baseZoom > 10) {
 			baseZoom = 10;
 		}
-		int	winSizeX	= vox.sizex * 2 * baseZoom;
-		int	winSizeY	= vox.sizey * 2 * baseZoom;
+		int	winSizeX	= vox.SizeX() * 2 * baseZoom;
+		int	winSizeY	= vox.SizeY() * 2 * baseZoom;
 
 		//Screen buffer and window
 		CImg<unsigned char>* screen	= new CImg<unsigned char>(winSizeX, winSizeY, 1, 3, 0);
@@ -357,8 +352,19 @@ int main(int argc, char** argv) {
 
 		//Main loop of window
 		while(true) {
-			//Clear
-			screen->fill(255);
+			//Clear with checker
+			screen->fill(32);
+			for(int y = 0; y < screen->height(); ++y) {
+				for(int x = 0; x < screen->width(); ++x) {
+					if((y%16 < 8 and x%16 < 8)
+					or (y%16 >= 8 and x%16 >= 8)
+					) {
+						for(int c = 0; c < 3; ++c) {
+							screen->atXY(x, y, 0, c)	= 96;
+						}
+					}
+				}
+			}
 
 			//Display layers
 			z	= 0;
@@ -396,10 +402,7 @@ int main(int argc, char** argv) {
 			}
 			//Display help
 			if(displayHelp) {
-				tempColor.r	= 0;
-				tempColor.g	= 0;
-				tempColor.b	= 0;
-				tempColor.a	= 255;
+				tempColor.rawInt	= 0xFFFFFFFF;
 				screen->draw_text(0, 0, string("Zoom: " + tostring(pxZoom)).c_str(), tempColor.raw, 0, 1, 12);
 				screen->draw_text(0, 14, string("Z: " + tostring(stopZ)).c_str(), tempColor.raw, 0, 1, 12);
 				screen->draw_text(0, 28, string(
