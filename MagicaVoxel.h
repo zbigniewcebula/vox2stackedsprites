@@ -40,8 +40,19 @@ class MV_RGBA {
 			unsigned char raw[4];
 		};
 
-		MV_RGBA() {
-			r = 0; b = 0; g = 0; a = 0;
+		MV_RGBA(unsigned char R = 0, unsigned char G = 0, unsigned char B = 0, unsigned char A = 0) {
+			r = R; b = B; g = G; a = A;
+		}
+		MV_RGBA(const MV_RGBA& org) {
+			r = org.r; b = org.b; g = org.g; a = org.a;
+		}
+
+		bool operator==(const MV_RGBA& cmp) {
+			return	cmp.r == r
+			and		cmp.g == g
+			and		cmp.b == b
+			and		cmp.a == a
+			;
 		}
 };
 
@@ -60,8 +71,8 @@ class MV_Model {
 	public:
 		int sizex, sizey, sizez;
 		
-		int			numVoxels;
-		MV_Voxel*	voxels;
+		int			numVoxels	= 0;
+		MV_Voxel*	voxels		= nullptr;
 
 		bool	isCustomPalette;
 		MV_RGBA palette[256];
@@ -78,20 +89,6 @@ class MV_Model {
 			isCustomPalette(false),
 			version(0)
 		{}
-		
-		void Free() {
-			if(voxels != nullptr) {
-				delete[]	voxels;
-				voxels		= nullptr;
-			}
-			numVoxels	= 0;
-			
-			sizex = sizey = sizez = 0;
-			
-			isCustomPalette = false;
-
-			version = 0;
-		}
 		
 		bool LoadModel(string path) {
 			return LoadModel(path.c_str());
@@ -121,6 +118,25 @@ class MV_Model {
 			return success;
 		}
 
+		bool IsEmpty() {
+			return sizex == 0 && sizey == 0 && sizez == 0;
+		}
+
+		void SetSize(int x, int y, int z) {
+			sizex		= x;
+			sizey		= y;
+			sizez		= z;
+			numVoxels	= 0;
+
+			if(voxels not_eq nullptr) {
+				delete[]	voxels;
+			}
+			voxels	= new MV_Voxel[sizex * sizey * sizez];
+			
+			isCustomPalette	= true;
+			version			= 150;
+		}
+
 		unsigned char ReadVoxel(int x, int y, int z) {
 			for(int i = 0; i < numVoxels; ++i) {
 				MV_Voxel&	v = voxels[i];
@@ -131,35 +147,65 @@ class MV_Model {
 			return 0;
 		}
 
-		void WriteVoxel(int x, int y, int z, int i) {
-			for(int i = 0; i < numVoxels; ++i) {
-				MV_Voxel&	v = voxels[i];
-				if(v.x == x && v.y == y && v.z == z) {
-					v.colorIndex	= i;
-					break;
+		void WriteVoxel(int x, int y, int z, int idx) {
+			if(x > -1 and x < sizex
+			and y > -1 and y < sizey
+			and z > -1 and z < sizez
+			) {
+				if(numVoxels > 0) {
+					for(int i = 0; i < numVoxels; ++i) {
+						MV_Voxel&	v = voxels[i];
+						if(v.x == x and v.y == y and v.z == z) {
+							v.colorIndex	= i;
+							return;
+						}
+					}
 				}
+				voxels[numVoxels].colorIndex	= idx;
+				voxels[numVoxels].x				= x;
+				voxels[numVoxels].y				= y;
+				voxels[numVoxels].z				= z;
+				++numVoxels;
 			}
 		}
 
 		void WritePalette(int index, uchar r, uchar g, uchar b, uchar a = 255) {
-			if(index < 256) {
+			if(index > -1 and index < 256) {
 				palette[index].r	= r;
 				palette[index].g	= g;
 				palette[index].b	= b;
 				palette[index].a	= a;
 			}
 		}
-		MV_RGBA ReadPalette(int index) {
-			if(index < 256) {
-				return palette[index];
+		void WritePalette(int index, const MV_RGBA& clr) {
+			if(index > -1 and index < 256) {
+				palette[index].r	= clr.r;
+				palette[index].g	= clr.g;
+				palette[index].b	= clr.b;
+				palette[index].a	= clr.a;
 			}
-			return palette[0];
 		}
-		MV_RGBA& AccessPalette(int index) {
-			if(index < 256) {
-				return palette[index];
+		MV_RGBA& ReadPalette(int index) {
+			if(index >= 256 or index < 0) {
+				index	= 0;
 			}
-			return palette[0];
+			return palette[index];
+		}
+
+		uint FindPaletteColorIndex(uchar r, uchar g, uchar b, uchar a) {
+			for(uint i = 0; i < 256; ++i) {
+				if(palette[i].r == r
+				and	palette[i].g == g
+				and	palette[i].b == b
+				and	palette[i].a == a
+				) {
+					 return i;
+				}
+			}
+			return 0xFFFFFFFF;
+		}
+		uint FindPaletteColorIndex(const MV_RGBA& clr) {
+			return FindPaletteColorIndex(clr.r, clr.g, clr.b, clr.a);
 		}
 
 		bool SaveModel(string path) {
@@ -194,22 +240,16 @@ class MV_Model {
 
 			//Voxele
 			hFile.write("XYZI", 4);
-			chunkSize	= 4 + numVoxels * sizeof(MV_Voxel);
-			hFile.write((char*)&chunkSize, 4);
+			chunkSize	= 4 + (numVoxels * sizeof(MV_Voxel));
+			hFile.write((char*)&chunkSize, 4);	
 			hFile.write("\0\0\0\0", 4);
 			hFile.write((char*)&numVoxels, 4);
-
-			for(uchar z = 0; z < sizez; ++z) {
-				for(uchar y = 0; y < sizey; ++y) {
-					for(uchar x = 0; x < sizex; ++x) {
-						uchar v	= ReadVoxel(x, y, z);
-
-						hFile.write((char*)&x, 1);
-						hFile.write((char*)&y, 1);
-						hFile.write((char*)&z, 1);
-						hFile.write((char*)&v, 1);
-					}
-				}
+			
+			for(int i = 0; i < numVoxels; ++i) {
+				hFile.write((char*)&voxels[i].x, 1);
+				hFile.write((char*)&voxels[i].y, 1);
+				hFile.write((char*)&voxels[i].z, 1);
+				hFile.write((char*)&voxels[i].colorIndex, 1);
 			}
 
 			//Paleta
@@ -235,6 +275,20 @@ class MV_Model {
 			int			childrenSize;
 			long int	end;
 		};
+
+		void Free() {
+			if(voxels != nullptr) {
+				delete[]	voxels;
+				voxels		= nullptr;
+			}
+			numVoxels	= 0;
+			
+			sizex = sizey = sizez = 0;
+			
+			isCustomPalette = false;
+
+			version = 0;
+		}
 		
 		bool ReadModelFile(FILE* fp) {
 			const int MV_VERSION = 150;

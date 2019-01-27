@@ -2,10 +2,13 @@
 Simple converter that breaks up VOX file into PNG layers for stacked layers technique
 
 TODO:
-* Add "-r" revese flag, takes layers and outputs VOX file
-* Sprite sheet
+* "-d" does not work on "-r" flag
+* Sprite sheet, "-s" flag (this flag cancels "-o" flag)
 * Use LibPNG for Windows compilation
 * Refactor MagicaVoxel.h to be more "C++ like"
+* Move out "-d" code from main file
+* Make sure that every limit is protected against overflow etc...
+* Remove top layers of "nothing" (every pixel is alpha 0)
 
 Dependencies:
  - Linux

@@ -2,6 +2,9 @@
 #define __HELP_FUNC__
 
 #include <string>
+#include <algorithm>
+
+#include <cstring>
 
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -40,6 +43,21 @@ bool dirExists(string path) {
 		return true;
 	}
 	return false;
+}
+
+inline bool isDir(string path) {
+	//Lazy wrap for code's beauty sake...
+	return dirExists(path);
+}
+
+string tolower(string in) {
+	string ret	= in;
+	transform(in.begin(), in.end(), ret.begin(), 
+		[](unsigned char c) -> unsigned char {
+			return tolower(c);
+		}
+	);
+	return ret;
 }
 
 #endif

@@ -5,9 +5,14 @@
 #include <string>
 #include <vector>
 #include <thread>
+#include <iterator>
 
 #include <cctype>
 #include <cstdio>
+#include <cstring>
+
+#include <dirent.h>
+#include <errno.h>
 
 #define cimg_use_png
 #include "CImg.h"
@@ -23,6 +28,9 @@ using namespace cimg_library;
 void help();
 
 int main(int argc, char** argv) {
+	//CIMG Exceptions
+	cimg::exception_mode(0);
+
 	//Checking args
 	if(argc <= 1) {
 		cerr	<< "No parameters given! Aborting..." << endl;
@@ -42,6 +50,8 @@ int main(int argc, char** argv) {
 		return 1;
 	}
 
+	bool outputReversed	= paramManager.getValueOf("-r") not_eq "";
+
 	//Formats
 	vector<string>	formats;
 	formats.push_back("png");
@@ -50,20 +60,13 @@ int main(int argc, char** argv) {
 	formats.push_back("asc");
 	formats.push_back("ppm");
 	formats.push_back("pgm");
-	if(paramManager.getValueOf("-f") != "") {
+	if(paramManager.getValueOf("-f") not_eq "") {
 		cout	<< "Avaiable formats: " << '\n';
-		for(string format : formats) {
+		for(string& format : formats) {
 			cout	<< '\t' << format << '\n';
 		}
 		cout	<< flush;
 		return 0;
-	}
-
-	//Checking input file
-	string	input		= paramManager.getValueOf("-i");
-	if(not fileExists(input)) {
-		cerr	<< "Input file does not exists! Aborting..." << endl;
-		return 1;
 	}
 
 	//Completing paths
@@ -81,14 +84,6 @@ int main(int argc, char** argv) {
 		} else {
 			outputPath	= outputPath.substr(0, slash - 1);
 		}
-	} else {
-		if(dirExists(outputPath) == false) {
-			cerr	<< "Incorrect output path! Aborting..." << endl;
-			return 1;
-		}
-		if(outputPath.back() != '/' && outputPath.back() != '\\') {
-			outputPath.append(1, '/');
-		}
 	}
 
 	//Output format check
@@ -96,78 +91,214 @@ int main(int argc, char** argv) {
 	if(outFormat == "") {
 		outFormat	= formats[0];
 	} else {
-		transform(
-			outFormat.begin(), outFormat.end(), outFormat.begin(), 
-			[](unsigned char c) -> unsigned char { return tolower(c); }
-		);
+		outFormat = tolower(outFormat);
 		if(find(formats.begin(), formats.end(), outFormat) == formats.end()) {
 			cerr	<< "Incorrect output format! Aborting..." << endl;
 			return 1;
 		}
 	}
 
-	//Cuz I'm lazy
+	//Checking input file
+	string	input		= paramManager.getValueOf("-i");
+	if(not outputReversed and not fileExists(input)) {
+		cerr	<< "Input file does not exists! Aborting..." << endl;
+		return 1;
+	}
+
+	//Cuz I'm lazy - naive cheking VOX file type
 	string	naiveType	= input.substr(input.length() - 3);
-	transform(
-		naiveType.begin(), naiveType.end(),
-		naiveType.begin(), [](unsigned char c) -> unsigned char {
-			return tolower(c);
-		}
-	);
+	naiveType = tolower(naiveType);
 	if(naiveType != "vox") {
-		if(paramManager.getValueOf("-r") != "") {
+		if(outputReversed == true) {
 			cerr	<< "Final file has not a VOX extension! Aborting..." << endl;
 		} else {
 			cerr	<< "Input file is not a VOX file! Aborting..." << endl;
 		}
 		return 1;
 	}
+
+	//Checking if out directory exists
+	if(dirExists(outputPath) == false) {
+		if(outputReversed == true) {
+			cerr	<< "Incorrect layers directory path! Aborting..." << endl;
+		} else {
+			cerr	<< "Incorrect output path! Aborting..." << endl;
+		}
+		return 1;
+	}
+	if(outputPath.back() != '/' && outputPath.back() != '\\') {
+		outputPath.append(1, '/');
+	}
 	
 	//Loading files
 	MV_Model vox;
-	if(not vox.LoadModel(input.c_str())) {
-		cerr	<< "VOX file is incorrect! Aborting..." << endl;
-		return 1;
-	}
-
-	//Copying voxels into layer and saving it as PNG file
-	cout	<< "Processing[";
-	for(int z = 0; z < vox.sizez; ++z) {
-		cout	<< '_';
-	}
-	cout	<< ']' << flush;
-	MV_RGBA			pixel;
-	unsigned char	paletteIdx;
 	vector<CImg<unsigned char>*>	layers;
-	for(int z = 0; z < vox.sizez; ++z) {
-		/////////////////////////////////////////////
-		cout	<< "\rProcessing[";
-		for(int _z = 0; _z < (z + 1); ++_z) {
-			cout	<< '|';
+
+	MV_RGBA		tempColor;
+
+	if(outputReversed) {
+		//From layer files to VOX file
+		DIR*	inDir	= nullptr;
+		dirent*	entry	= nullptr;
+
+		//Listing files in input directory
+		inDir	= opendir(outputPath.c_str());
+		if(inDir == nullptr) {
+			cerr	<< "Layers directory incorrect! Aborting..." << endl;
+			cerr	<< "Additional message: " << strerror(errno) << endl;
+			return 1;
 		}
-		/////////////////////////////////////////////
-		layers.push_back(new CImg<unsigned char>(vox.sizex, vox.sizey, 1, 4, 0));
-		CImg<unsigned char>& layer	= *(layers.back());
-		for(int y = 0; y < vox.sizey; ++y) {
-			for(int x = 0; x < vox.sizex; ++x) {
-				paletteIdx	= vox.ReadVoxel(x, y, z);
-				if(paletteIdx == 0) {
-					pixel.a	= 0;
-				} else {
-					pixel.r	= vox.palette[paletteIdx].r;
-					pixel.g	= vox.palette[paletteIdx].g;
-					pixel.b	= vox.palette[paletteIdx].b;
-					pixel.a	= 255;
-				}
-				layer.draw_point(x, y, 0, pixel.raw, pixel.a);
+
+		vector<string>	layerFile;
+		while((entry = readdir(inDir)) not_eq nullptr) {
+			string	fileName	= entry->d_name;
+			if(fileName == "." || fileName == "..")	continue;
+
+			if(not isDir(fileName)
+			and endsWith(tolower(fileName), outFormat)
+			) {
+				layerFile.push_back(fileName);
 			}
 		}
-		cout << flush;
-		layer.save((outputPath + "LAYER." + outFormat).c_str(), z, 3);
+		closedir(inDir);
+
+		//Opening files and reading them as layers
+		if(layerFile.size() > 0) {
+			sort(layerFile.begin(), layerFile.end());
+			try {
+				for(string& file : layerFile) {
+					layers.push_back(new CImg<unsigned char>(
+						(outputPath + file).c_str()
+					));
+				}
+			} catch(CImgIOException& ex) {
+				cerr	<< "No layer file found [Searched for all: '"
+						<< outFormat << "' files]! Aborting...\n"
+						<< "Details: " << ex.what()
+				<< endl;
+				return 1;
+			}
+
+			//Reading layer sizes and palette
+			unsigned int	z			= 0;
+			unsigned int	paletteID	= 0;
+			unsigned int	tempIdx		= 0;
+
+			for(CImg<unsigned char>* layer : layers) {
+				//Checking sizes of layers
+				if(z == 0) {
+					vox.SetSize(layer->width(), layer->height(), layers.size());
+					cout	<< "Processing[";
+					for(int _z = 0; _z < vox.sizez; ++_z) {
+						cout	<< '_';
+					}
+					cout	<< ']' << flush;
+				}
+				if(layer->width() not_eq vox.sizex
+				or layer->height() not_eq vox.sizey
+				) {
+					cerr	<< "Layer '" << layerFile[z]
+							<< "' size is not same as first layer! Aborting..."
+					<< endl;
+					return 1;
+				} else {
+					//Searching pixels for palettes and putting them in VOX
+					for(int y = 0; y < layer->height(); ++y) {
+						for(int x = 0; x < layer->width(); ++x) {
+							//Gathering color of pixel
+							tempColor.r	= layer->atXY(x, y, 0, 0);
+							tempColor.g	= layer->atXY(x, y, 0, 1);
+							tempColor.b	= layer->atXY(x, y, 0, 2);
+							tempColor.a	= layer->atXY(x, y, 0, 3);
+							if(tempColor.a == 0) {
+								//Nonexistent voxel
+								continue;
+							}
+
+							//Searching for index of palette if exists
+							tempIdx	= vox.FindPaletteColorIndex(tempColor);
+							if(tempIdx == 0xFFFFFFFF) {
+								//If exists checking if palette limit is not reached
+								if(paletteID < 256) {
+									//Adding color to palette
+									vox.WritePalette(paletteID, tempColor);
+									tempIdx	= ++paletteID;
+								} else {
+									cerr	<< "Too many colors! "
+											<< "VOX format does not support more than 255 colors. "
+											<< "Aborting..."
+									<< endl;
+									return 1;
+								}
+							} else {
+								//Moving Idx by one, due to VOX palette format
+								++tempIdx;
+							}
+							//Writing voxel with determined color from palette
+							vox.WriteVoxel(x, y, z, tempIdx);
+						}
+					}
+					/////////////////////////////////////////////
+					cout	<< "\rProcessing[";
+					for(unsigned int _z = 0; _z < (z + 1); ++_z) {
+						cout	<< '|';
+					}
+					cout << flush;
+					/////////////////////////////////////////////
+					++z;
+				}
+			}
+		} else {
+			cerr	<< "No layer files found [Searched for all: '"
+					<< outFormat << "' files]! Aborting..."
+			<< endl;
+			return 1;
+		}
+		vox.SaveModel(input);
+	} else {
+		//From VOX into layers
+		if(not vox.LoadModel(input.c_str())) {
+			cerr	<< "VOX file is incorrect! Aborting..." << endl;
+			return 1;
+		}
+
+		//Copying voxels into layer and saving it as PNG file
+		cout	<< "Processing[";
+		for(int z = 0; z < vox.sizez; ++z) {
+			cout	<< '_';
+		}
+		cout	<< ']' << flush;
+		unsigned char	paletteID;
+		for(int z = 0; z < vox.sizez; ++z) {
+			layers.push_back(new CImg<unsigned char>(vox.sizex, vox.sizey, 1, 4, 0));
+			CImg<unsigned char>& layer	= *(layers.back());
+			for(int y = 0; y < vox.sizey; ++y) {
+				for(int x = 0; x < vox.sizex; ++x) {
+					paletteID	= vox.ReadVoxel(x, y, z);
+					if(paletteID == 0) {
+						tempColor.a	= 0;
+					} else {
+						tempColor.r	= vox.palette[paletteID].r;
+						tempColor.g	= vox.palette[paletteID].g;
+						tempColor.b	= vox.palette[paletteID].b;
+						tempColor.a	= 255;
+					}
+					layer.draw_point(x, y, 0, tempColor.raw, tempColor.a);
+				}
+			}
+
+			/////////////////////////////////////////////
+			cout	<< "\rProcessing[";
+			for(int _z = 0; _z < (z + 1); ++_z) {
+				cout	<< '|';
+			}
+			cout << flush;
+			/////////////////////////////////////////////
+			layer.save((outputPath + "LAYER." + outFormat).c_str(), z, 3);
+		}
 	}
 
 	cout	<< "\nDone (" << vox.sizez << " layers)!" << endl;
-
 
 	if(paramManager.getValueOf("-d") != "") {
 		//Preparing helping variables
@@ -236,11 +367,11 @@ int main(int argc, char** argv) {
 				layer.rotate(angle, layer.width() / 2, layer.height() / 2);
 				for(int y = 0; y < layer.height(); ++y) {
 					for(int x = 0; x < layer.width(); ++x) {
-						pixel.r	= layer.atXY(x, y, 0, 0);
-						pixel.g	= layer.atXY(x, y, 0, 1);
-						pixel.b	= layer.atXY(x, y, 0, 2);
-						pixel.a	= layer.atXY(x, y, 0, 3);
-						if(pixel.a == 0) {
+						tempColor.r	= layer.atXY(x, y, 0, 0);
+						tempColor.g	= layer.atXY(x, y, 0, 1);
+						tempColor.b	= layer.atXY(x, y, 0, 2);
+						tempColor.a	= layer.atXY(x, y, 0, 3);
+						if(tempColor.a == 0) {
 							continue;
 						}
 						for(int Y = 0; Y < pxZoom; ++Y) {
@@ -252,7 +383,7 @@ int main(int argc, char** argv) {
 									(y * pxZoom) + (z * pxZoom) + Y
 								) + offY;
 								if(tempX > -1 && tempY > -1 && tempX < winSizeX && tempY < winSizeY) {
-									screen->draw_point(tempX, tempY, 0, pixel.raw, 1);
+									screen->draw_point(tempX, tempY, 0, tempColor.raw, 1);
 								}
 							}
 						}
@@ -265,22 +396,22 @@ int main(int argc, char** argv) {
 			}
 			//Display help
 			if(displayHelp) {
-				pixel.r	= 0;
-				pixel.g	= 0;
-				pixel.b	= 0;
-				pixel.a	= 255;
-				screen->draw_text(0, 0, string("Zoom: " + tostring(pxZoom)).c_str(), pixel.raw, 0, 1, 12);
-				screen->draw_text(0, 14, string("Z: " + tostring(stopZ)).c_str(), pixel.raw, 0, 1, 12);
+				tempColor.r	= 0;
+				tempColor.g	= 0;
+				tempColor.b	= 0;
+				tempColor.a	= 255;
+				screen->draw_text(0, 0, string("Zoom: " + tostring(pxZoom)).c_str(), tempColor.raw, 0, 1, 12);
+				screen->draw_text(0, 14, string("Z: " + tostring(stopZ)).c_str(), tempColor.raw, 0, 1, 12);
 				screen->draw_text(0, 28, string(
 						"Offset: (" + tostring(offX) + "; " + tostring(offY) + ")"
-					).c_str(), pixel.raw, 0, 1, 12
+					).c_str(), tempColor.raw, 0, 1, 12
 				);
 
 				helpMenuY		= winSizeY - options.size() * 12;
 				int	yMenu		= 0;
 				for(OptionKeyPair o : options) {
-					screen->draw_text(helpMenuX, helpMenuY + (yMenu * 11), o.option.c_str(), pixel.raw, 0, 1, 10);
-					screen->draw_text(helpMenuX + 80, helpMenuY + (yMenu * 11), o.key.c_str(), pixel.raw, 0, 1, 10);
+					screen->draw_text(helpMenuX, helpMenuY + (yMenu * 11), o.option.c_str(), tempColor.raw, 0, 1, 10);
+					screen->draw_text(helpMenuX + 80, helpMenuY + (yMenu * 11), o.key.c_str(), tempColor.raw, 0, 1, 10);
 					++yMenu;
 				}
 			}
@@ -308,7 +439,7 @@ int main(int argc, char** argv) {
 			}
 
 			//Help
-			if(window.is_key(cimg::keyH) || window.is_key(cimg::keyF1)) {
+			if(window.is_key(cimg::keyH) or window.is_key(cimg::keyF1)) {
 				displayHelp	= !displayHelp;
 			}
 
@@ -363,7 +494,7 @@ int main(int argc, char** argv) {
 			}
 
 			//Rest
-			if(window.is_keyESC() || window.is_closed()) {
+			if(window.is_keyESC() or window.is_closed()) {
 				break;
 			}
 			if(window.is_key_sequence(saveShortcut, 2)) {
@@ -373,7 +504,7 @@ int main(int argc, char** argv) {
 			}
 
 			//Delaying window event reaction
-			this_thread::sleep_for(50ms);
+			this_thread::sleep_for(33ms);	//naive 30 FPS
 		}
 		delete	screen;
 	}
