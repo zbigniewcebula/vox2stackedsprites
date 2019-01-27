@@ -34,3 +34,5 @@
 *.png
 
 _main
+
+*.sublime-workspace

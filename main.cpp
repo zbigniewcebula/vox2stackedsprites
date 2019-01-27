@@ -45,7 +45,7 @@ int main(int argc, char** argv) {
 	paramManager.addParam("-of", "--outformat", "Sets format of output layers files", "FORMAT");
 	paramManager.addParam("-f", "--formats", "Shows available formats", "");
 	paramManager.addParam("-d", "--display", "Displays output product (WIP)", "SCALE");
-	paramManager.addParam("-r", "--reverse", "Reverses process, uses OUTPUT ot generate INPUT", "");
+	paramManager.addParam("-r", "--reverse", "Reverses process, uses OUTPUT to generate INPUT", "");
 	if(paramManager.process(argc, argv) == false) {
 		return 1;
 	}
@@ -313,7 +313,7 @@ int main(int argc, char** argv) {
 		int	winSizeX	= vox.sizex * 2 * baseZoom;
 		int	winSizeY	= vox.sizey * 2 * baseZoom;
 
-		//(*Screen) buffer and window
+		//Screen buffer and window
 		CImg<unsigned char>* screen	= new CImg<unsigned char>(winSizeX, winSizeY, 1, 3, 0);
 		CImgDisplay	window(*screen, string("Display of: " + input).c_str(), 3, false, false);
 

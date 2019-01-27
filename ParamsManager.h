@@ -107,8 +107,11 @@ class ParamsManager {
 					} else if((*lastParam) == "-h") {
 						printHelp();
 						return false;
-					} else if((*lastParam) == "-f" || (*lastParam) == "-r") {
-						(*lastParam).value	= ".";
+					} else if((*lastParam) == "-f"
+						or (*lastParam) == "-r"
+						or (*lastParam) == "-d"
+					) {
+						(*lastParam).value	= "1";
 					} else if((*lastParam).value != "") {
 						cerr	<< "Parameter \"" << tempStr << "\" used multiple times! Aborting..." << endl;
 						return false;
