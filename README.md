@@ -4,7 +4,6 @@ Simple converter that breaks up VOX file into PNG layers for stacked layers tech
 TODO:
 * Sprite sheet, "-s" flag (this flag cancels "-o" flag)
 * Use LibPNG for Windows compilation
-* Move out "-d" code from main file
 * Make sure that every limit is protected against overflow etc...
 * Remove top layers of "nothing" (every pixel is alpha 0)
 
