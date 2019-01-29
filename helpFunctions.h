@@ -20,21 +20,6 @@ bool fileExists(string path) {
 	return true;
 }
 
-string tostring(int number) {
-	stringstream ss;
-	ss	<< number;
-	return ss.str();
-}
-
-bool startsWith(const string& haystack, const string& needle) {
-	return	needle.length() <= haystack.length() 
-	&&		equal(needle.begin(), needle.end(), haystack.begin());
-}
-bool endsWith(const string& haystack, const string& needle) {
-	return	needle.length() <= haystack.length() 
-	&&		equal(needle.rbegin(), needle.rend(), haystack.rbegin());
-}
-
 bool dirExists(string path) {
 	struct stat info;
 	if(stat(path.c_str(), &info) != 0) {
@@ -50,6 +35,21 @@ inline bool isDir(string path) {
 	return dirExists(path);
 }
 
+string tostring(int number) {
+	stringstream ss;
+	ss	<< number;
+	return ss.str();
+}
+
+bool startsWith(const string& haystack, const string& needle) {
+	return	needle.length() <= haystack.length() 
+	&&		equal(needle.begin(), needle.end(), haystack.begin());
+}
+bool endsWith(const string& haystack, const string& needle) {
+	return	needle.length() <= haystack.length() 
+	&&		equal(needle.rbegin(), needle.rend(), haystack.rbegin());
+}
+
 string tolower(string in) {
 	string ret	= in;
 	transform(in.begin(), in.end(), ret.begin(), 
@@ -58,6 +58,22 @@ string tolower(string in) {
 		}
 	);
 	return ret;
+}
+
+void processingBar(unsigned int value, unsigned int max) {
+	if(value == 0) {
+		cout	<< "Processing[";
+		for(unsigned int p = 0; p < max; ++p) {
+			cout	<< '_';
+		}
+		cout	<< ']' << flush;
+		return;
+	}
+	cout	<< "\rProcessing[";
+	for(unsigned int p = 0; p < value; ++p) {
+		cout	<< '|';
+	}
+	cout << flush;
 }
 
 #endif

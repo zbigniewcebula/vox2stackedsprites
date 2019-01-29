@@ -17,12 +17,12 @@ class Preview {
 	public:
 		static void Show(
 			string title,
-			vector<CImg<unsigned char>*>& layers, int startZoom,
+			vector<CImg<unsigned char>*>& layers, unsigned int startZoom,
 			int modelSizeX, int modelSizeY,
 			string outputPath
 		) {
 			//Preparing helping variables
-			int	baseZoom		= startZoom;
+			int	baseZoom		= startZoom > 10? 10: startZoom;
 			int pxZoom			= 0;
 			if(baseZoom < 1) {
 				baseZoom = 1;

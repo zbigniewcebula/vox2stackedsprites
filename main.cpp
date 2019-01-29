@@ -42,15 +42,34 @@ int main(int argc, char** argv) {
 	paramManager.addParam("-h", "--help", "Shows help", "");
 	paramManager.addParam("-o", "--out", "Sets path for output files", "DIRECTORY");
 	paramManager.addParam("-i", "--in", "Sets path for input file", "INTPUT_PATH");
-	paramManager.addParam("-of", "--outformat", "Sets format of output layers files", "FORMAT");
 	paramManager.addParam("-f", "--formats", "Shows available formats", "");
+	paramManager.addParam("-of", "--outformat", "Sets format of output layers files", "FORMAT");
 	paramManager.addParam("-d", "--display", "Displays output product (WIP)", "SCALE");
 	paramManager.addParam("-r", "--reverse", "Reverses process, uses OUTPUT to generate INPUT", "");
+	paramManager.addParam(
+		"-ts",
+		"--tilesize", "Use with -r and -o set to specific file, for help use -hts, max value 1024",
+		""
+	);
+	paramManager.addParam("-hts", "--help-ts", "Help message for usage of -ts flag", "");
 	if(paramManager.process(argc, argv) == false) {
 		return 1;
 	}
 
-	bool outputReversed	= paramManager.getValueOf("-r") not_eq "";
+	string			tempStr;
+
+	bool			outputReversed	= paramManager.getValueOf("-r") not_eq "";
+	bool			displayResult	= paramManager.getValueOf("-d") != "";
+
+	tempStr		= paramManager.getValueOf("-ts");
+	if(tempStr.find_first_of('-') != string::npos or tempStr.length() == 0) {
+		tempStr	= "0";
+	}
+	unsigned int	tileSize		= stoul(tempStr);
+	//Naive limit
+	if(tileSize > 1024) {
+		tileSize	= 1024;
+	}
 
 	//Formats
 	vector<string>	formats;
@@ -60,6 +79,7 @@ int main(int argc, char** argv) {
 	formats.push_back("asc");
 	formats.push_back("ppm");
 	formats.push_back("pgm");
+	//formats.push_back("cpp");
 	if(paramManager.getValueOf("-f") not_eq "") {
 		cout	<< "Avaiable formats: " << '\n';
 		for(string& format : formats) {
@@ -107,7 +127,7 @@ int main(int argc, char** argv) {
 
 	//Cuz I'm lazy - naive cheking VOX file type
 	if(string naiveType = tolower(input.substr(input.length() - 3)); naiveType != "vox") {
-		if(outputReversed == true) {
+		if(outputReversed) {
 			cerr	<< "Final file has not a VOX extension! Aborting..." << endl;
 		} else {
 			cerr	<< "Input file is not a VOX file! Aborting..." << endl;
@@ -115,16 +135,24 @@ int main(int argc, char** argv) {
 		return 1;
 	}
 
-	//Checking if out directory exists
+	//Checking if out (in when reversed) directory/file exists
+	bool	outIsFile	= endsWith(outputPath, "." + outFormat);
 	if(dirExists(outputPath) == false) {
-		if(outputReversed == true) {
-			cerr	<< "Incorrect layers directory path! Aborting..." << endl;
+		if(outIsFile) {
+			if(outputReversed and not fileExists(outputPath)) {
+				cerr	<< "Incorrect layers file path (does not exists)! Aborting..." << endl;
+				return 1;
+			}
 		} else {
-			cerr	<< "Incorrect output path! Aborting..." << endl;
+			if(outputReversed) {
+				cerr	<< "Incorrect layers directory path! Aborting..." << endl;
+			} else {
+				cerr	<< "Incorrect output path! Aborting..." << endl;
+			}
+			return 1;
 		}
-		return 1;
 	}
-	if(outputPath.back() != '/' && outputPath.back() != '\\') {
+	if(not outIsFile and outputPath.back() != '/' and outputPath.back() != '\\') {
 		outputPath.append(1, '/');
 	}
 	
@@ -136,38 +164,53 @@ int main(int argc, char** argv) {
 
 	if(outputReversed) {
 		//From layer files to VOX file
-		DIR*	inDir	= nullptr;
-		dirent*	entry	= nullptr;
-
-		//Listing files in input directory
-		inDir	= opendir(outputPath.c_str());
-		if(inDir == nullptr) {
-			cerr	<< "Layers directory incorrect! Aborting..." << endl;
-			cerr	<< "Additional message: " << strerror(errno) << endl;
-			return 1;
-		}
-
 		vector<string>	layerFile;
-		while((entry = readdir(inDir)) not_eq nullptr) {
-			string	fileName	= entry->d_name;
-			if(fileName == "." || fileName == "..")	continue;
-
-			if(not isDir(fileName)
-			and endsWith(tolower(fileName), outFormat)
-			) {
-				layerFile.push_back(fileName);
+		if(outIsFile) {
+			if(tileSize == 0) {
+				cerr	<< "Tile size cannot be 0! Aborting..." << endl;
+				return 1;
 			}
-		}
-		closedir(inDir);
+			layerFile.push_back(outputPath);
+		} else {
+			DIR*	inDir	= nullptr;
+			dirent*	entry	= nullptr;
 
-		//Opening files and reading them as layers
+			//Listing files in input directory
+			inDir	= opendir(outputPath.c_str());
+			if(inDir == nullptr) {
+				cerr	<< "Layers directory incorrect! Aborting..."
+						<< "Additional message: " << strerror(errno)
+				<< endl;
+				return 1;
+			}
+
+			while((entry = readdir(inDir)) not_eq nullptr) {
+				string	fileName	= entry->d_name;
+				if(fileName == "." || fileName == "..")	continue;
+
+				if(not isDir(fileName)
+				and endsWith(tolower(fileName), outFormat)
+				) {
+					layerFile.push_back(fileName);
+				}
+			}
+			closedir(inDir);
+		}
+
 		if(layerFile.size() > 0) {
-			sort(layerFile.begin(), layerFile.end());
+			//Opening files and reading them as layers
+			if(layerFile.size() > 1) {
+				sort(layerFile.begin(), layerFile.end());
+			}
 			try {
-				for(string& file : layerFile) {
-					layers.push_back(new CImg<unsigned char>(
-						(outputPath + file).c_str()
-					));
+				if(outIsFile) {
+					layers.reserve(1);
+					layers.push_back(new CImg<unsigned char>(layerFile.front().c_str()));
+				} else {
+					layers.reserve(layerFile.size());
+					for(string& file : layerFile) {
+						layers.push_back(new CImg<unsigned char>((outputPath + file).c_str()));
+					}
 				}
 			} catch(CImgIOException& ex) {
 				cerr	<< "No layer file found [Searched for all: '"
@@ -185,16 +228,17 @@ int main(int argc, char** argv) {
 			for(CImg<unsigned char>* layer : layers) {
 				//Checking sizes of layers
 				if(z == 0) {
-					vox.SetSize(layer->width(), layer->height(), layers.size());
-					cout	<< "Processing[";
-					for(int _z = 0; _z < vox.SizeZ(); ++_z) {
-						cout	<< '_';
+					if(outIsFile) {
+						vox.SetSize(tileSize, layer->height(), layer->width() / tileSize);
+					} else {
+						vox.SetSize(layer->width(), layer->height(), layers.size());
 					}
-					cout	<< ']' << flush;
+					processingBar(0, vox.SizeZ());
 				}
-				if(layer->width() not_eq vox.SizeX()
+				if(not outIsFile and (
+					layer->width() not_eq vox.SizeX()
 				or layer->height() not_eq vox.SizeY()
-				) {
+				)) {
 					cerr	<< "Layer '" << layerFile[z]
 							<< "' size is not same as first layer! Aborting..."
 					<< endl;
@@ -233,17 +277,20 @@ int main(int argc, char** argv) {
 								++tempIdx;
 							}
 							//Writing voxel with determined color from palette
-							vox.SetVoxel(x, y, z, tempIdx);
+							if(outIsFile) {
+								vox.SetVoxel(x % tileSize, y, x / tileSize, tempIdx);
+								if(x % tileSize == 0) {
+									processingBar(x / tileSize, vox.SizeZ());	
+								}
+							} else {
+								vox.SetVoxel(x, y, z, tempIdx);
+							}
 						}
 					}
-					/////////////////////////////////////////////
-					cout	<< "\rProcessing[";
-					for(unsigned int _z = 0; _z < (z + 1); ++_z) {
-						cout	<< '|';
-					}
-					cout << flush;
-					/////////////////////////////////////////////
 					++z;
+					/////////////////////////////////////////////
+					if(not outIsFile) processingBar(z, vox.SizeZ());
+					/////////////////////////////////////////////
 				}
 			}
 		} else {
@@ -259,17 +306,30 @@ int main(int argc, char** argv) {
 			cerr	<< "VOX file is incorrect! Aborting..." << endl;
 			return 1;
 		}
-
-		//Copying voxels into layer and saving it as PNG file
-		cout	<< "Processing[";
-		for(int z = 0; z < vox.SizeZ(); ++z) {
-			cout	<< '_';
+		if(vox.SizeZ() == 0) {
+			cerr	<< "VOX file is empty! Aborting..." << endl;
+			return 1;
 		}
-		cout	<< ']' << flush;
-		
+
+		layers.reserve(vox.SizeZ());
+
+		//Copying voxels into layer(s) and saving it as file in specified format
+		if(outIsFile) {
+			layers.push_back(new CImg<unsigned char>(
+				vox.SizeX() * vox.SizeZ(), vox.SizeY(), 1, 4, 0
+			));
+		}
+		//LoL => Material conditional
+		bool	implyLayers	= not outIsFile or displayResult;
 		for(int z = 0; z < vox.SizeZ(); ++z) {
-			layers.push_back(new CImg<unsigned char>(vox.SizeX(), vox.SizeY(), 1, 4, 0));
-			CImg<unsigned char>& layer	= *(layers.back());
+			/////////////////////////////////////////////
+			processingBar(z, vox.SizeZ());
+			/////////////////////////////////////////////
+
+			if(implyLayers) {
+				layers.push_back(new CImg<unsigned char>(vox.SizeX(), vox.SizeY(), 1, 4, 0));
+			}
+			
 			for(int y = 0; y < vox.SizeY(); ++y) {
 				for(int x = 0; x < vox.SizeX(); ++x) {
 					if(unsigned char paletteID = vox.VoxelColorID(x, y, z); paletteID == 0) {
@@ -278,30 +338,37 @@ int main(int argc, char** argv) {
 						tempColor	= vox.PaletteColor(paletteID);
 						tempColor.a	= 255;
 					}
-					layer.draw_point(x, y, 0, tempColor.raw, tempColor.a);
+					if(outIsFile) {
+						layers.front()->draw_point(z * vox.SizeX() + x, y, 0, tempColor.raw, tempColor.a);
+					}
+					if(implyLayers) {
+						layers.back()->draw_point(x, y, 0, tempColor.raw, tempColor.a);
+					}
 				}
 			}
-
-			/////////////////////////////////////////////
-			cout	<< "\rProcessing[";
-			for(int _z = 0; _z < (z + 1); ++_z) {
-				cout	<< '|';
+			if(not outIsFile) {
+				layers.back()->save((outputPath + "LAYER." + outFormat).c_str(), z, 3);
 			}
-			cout << flush;
-			/////////////////////////////////////////////
-			layer.save((outputPath + "LAYER." + outFormat).c_str(), z, 3);
+		}
+		if(outIsFile) {
+			layers.front()->save(outputPath.c_str());
+			if(displayResult) {
+				delete	layers.front();
+				layers.erase(layers.begin());
+			}
+			processingBar(vox.SizeZ(), vox.SizeZ());
 		}
 	}
 
 	cout	<< "\nDone (" << vox.SizeZ() << " layers)!" << endl;
 
-	if(paramManager.getValueOf("-d") != "") {
-		Preview::Show(
-			"Display of: " + input,
-			layers,
-			stoi(paramManager.getValueOf("-d")), vox.SizeX(), vox.SizeY(),
-			outputPath
-		);
+	if(displayResult) {
+		tempStr		= paramManager.getValueOf("-d");
+		if(tempStr.find_first_of('-') != string::npos) {
+			tempStr	= "0";
+		}
+
+		Preview::Show("Display of: " + input, layers, stoul(tempStr), vox.SizeX(), vox.SizeY(), outputPath);
 	}
 
 	//Clean out and peace out
