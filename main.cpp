@@ -48,7 +48,7 @@ int main(int argc, char** argv) {
 	paramManager.addParam("-r", "--reverse", "Reverses process, uses OUTPUT to generate INPUT", "");
 	paramManager.addParam(
 		"-ts",
-		"--tilesize", "Use with -r and -o set to specific file, for help use -hts, max value 1024",
+		"--tilesize", "Use with -r and -o set to specific file, for help use -hts, max value 126",
 		""
 	);
 	paramManager.addParam("-hts", "--help-ts", "Help message for usage of -ts flag", "");
@@ -56,19 +56,21 @@ int main(int argc, char** argv) {
 		return 1;
 	}
 
-	string			tempStr;
-
 	bool			outputReversed	= paramManager.getValueOf("-r") not_eq "";
 	bool			displayResult	= paramManager.getValueOf("-d") != "";
 
-	tempStr		= paramManager.getValueOf("-ts");
-	if(tempStr.find_first_of('-') != string::npos or tempStr.length() == 0) {
-		tempStr	= "0";
-	}
-	unsigned int	tileSize		= stoul(tempStr);
+	int	tileSize		= stoi(paramManager.getValueOf("-ts"));
 	//Naive limit
-	if(tileSize > 1024) {
-		tileSize	= 1024;
+	if(tileSize > 126) {	//Limit forced by MagicaVoxel VOX format
+		cerr	<< "Size of tile is too big! Aborting..." << endl;
+		return 1;
+	}
+	if(tileSize < 0) {
+		cerr	<< "Size cannot be negative number! Aborting..." << endl;
+		return 1;
+	} else if(tileSize < 1) {
+		cerr	<< "Size of tile is too small! Aborting..." << endl;
+		return 1;
 	}
 
 	//Formats
@@ -206,6 +208,21 @@ int main(int argc, char** argv) {
 				if(outIsFile) {
 					layers.reserve(1);
 					layers.push_back(new CImg<unsigned char>(layerFile.front().c_str()));
+					if(layers.front()->width() < tileSize) {
+						cerr	<< "Too big tile size for that input sprite sheet! Aborting..." << endl;
+						wipeVector(layers);
+						return 1;
+					}
+					if(layers.front()->height() not_eq tileSize) {
+						cerr	<< "Height of input sprite sheet is not equal to tile size! Aborting..." << endl;
+						wipeVector(layers);
+						return 1;
+					}
+					if(layers.front()->width()%tileSize > 0) {
+						cerr	<< "Tile size is not a multiple of the size of input sprite sheet! Aborting..." << endl;
+						wipeVector(layers);
+						return 1;
+					}
 				} else {
 					layers.reserve(layerFile.size());
 					for(string& file : layerFile) {
@@ -217,13 +234,14 @@ int main(int argc, char** argv) {
 						<< outFormat << "' files]! Aborting...\n"
 						<< "Details: " << ex.what()
 				<< endl;
+				wipeVector(layers);
 				return 1;
 			}
 
 			//Reading layer sizes and palette
 			unsigned int	z			= 0;
 			unsigned int	paletteID	= 0;
-			unsigned int	tempIdx		= 0;
+			unsigned short	tempIdx		= 0;
 
 			for(CImg<unsigned char>* layer : layers) {
 				//Checking sizes of layers
@@ -259,7 +277,7 @@ int main(int argc, char** argv) {
 
 							//Searching for index of palette if exists
 							tempIdx	= vox.FindPaletteColorIndex(tempColor);
-							if(tempIdx == 0xFFFFFFFF) {
+							if(tempIdx == 0xFFFF) {
 								//If exists checking if palette limit is not reached
 								if(paletteID < 256) {
 									//Adding color to palette
@@ -270,6 +288,7 @@ int main(int argc, char** argv) {
 											<< "VOX format does not support more than 255 colors. "
 											<< "Aborting..."
 									<< endl;
+									wipeVector(layers);
 									return 1;
 								}
 							} else {
@@ -363,17 +382,10 @@ int main(int argc, char** argv) {
 	cout	<< "\nDone (" << vox.SizeZ() << " layers)!" << endl;
 
 	if(displayResult) {
-		tempStr		= paramManager.getValueOf("-d");
-		if(tempStr.find_first_of('-') != string::npos) {
-			tempStr	= "0";
-		}
-
-		Preview::Show("Display of: " + input, layers, stoul(tempStr), vox.SizeX(), vox.SizeY(), outputPath);
+		Preview::Show("Display of: " + input, layers, stoi(paramManager.getValueOf("-d")), vox.SizeX(), vox.SizeY(), outputPath);
 	}
 
 	//Clean out and peace out
-	for(CImg<unsigned char>* layer : layers) {
-		delete	layer;
-	}
+	wipeVector(layers);
 	return 0;
 }

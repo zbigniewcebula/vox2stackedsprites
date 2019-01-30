@@ -2,14 +2,13 @@
 Simple converter that breaks up VOX file into PNG layers for stacked layers technique
 
 TODO:
-* Add -ts check if tile size is able to be fit in image width range
-* Add -hts to explain -ts behvior
 * Add option (-iul / --ignoreunusedlayers flag?) to ignore last layers of emptiness (every pixel alpha is 0)
 * Use LibPNG for Windows compilation
 * Make sure that every limit is protected against overflow etc...
 
 OPTIONAL TODO:
 * Add "cpp" in/out format that is used by CImg library
+* Multithreading?
 
 Dependencies:
  - Linux

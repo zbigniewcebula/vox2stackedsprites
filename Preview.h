@@ -14,22 +14,26 @@ using namespace std;
 using namespace cimg_library;
 
 class Preview {
+	private:
+		constexpr static const int minZoom = 1;
+		constexpr static const int maxZoom = 20;
 	public:
 		static void Show(
 			string title,
-			vector<CImg<unsigned char>*>& layers, unsigned int startZoom,
+			vector<CImg<unsigned char>*>& layers, int baseZoom,
 			int modelSizeX, int modelSizeY,
 			string outputPath
 		) {
 			//Preparing helping variables
-			int	baseZoom		= startZoom > 10? 10: startZoom;
-			int pxZoom			= 0;
-			if(baseZoom < 1) {
-				baseZoom = 1;
+			if(baseZoom < minZoom) {
+				baseZoom	= minZoom;
+				cout	<< "WARNING! Zoom value to small or negative, setting zoom to " << minZoom << "..." << endl;
+			} else if(baseZoom > maxZoom) {
+				baseZoom	= maxZoom;
+				cout	<< "WARNING! Zoom value to big, setting zoom to " << maxZoom << "..." << endl;
 			}
-			if(baseZoom > 10) {
-				baseZoom = 10;
-			}
+
+			int pxZoom		= 0;
 			int	winSizeX	= modelSizeX * 2 * baseZoom;
 			int	winSizeY	= modelSizeY * 2 * baseZoom;
 
@@ -83,8 +87,8 @@ class Preview {
 				screen->fill(32);
 				for(int y = 0; y < screen->height(); ++y) {
 					for(int x = 0; x < screen->width(); ++x) {
-						if((y%16 < 8 and x%16 < 8)
-						or (y%16 >= 8 and x%16 >= 8)
+						if((y % 16 < 8 and x % 16 < 8)
+						or (y % 16 >= 8 and x % 16 >= 8)
 						) {
 							for(int c = 0; c < 3; ++c) {
 								screen->atXY(x, y, 0, c)	= 96;
@@ -161,11 +165,11 @@ class Preview {
 
 				//Zoom control
 				pxZoom	= baseZoom + window.wheel(); 
-				if(pxZoom < 1) {
-					pxZoom = 1;
+				if(pxZoom < minZoom) {
+					pxZoom = minZoom;
 				}
-				if(pxZoom > 20) {
-					pxZoom = 20;
+				if(pxZoom > maxZoom) {
+					pxZoom = maxZoom;
 				}
 
 				//Help
@@ -176,7 +180,7 @@ class Preview {
 				//Layers control
 				if(window.is_key(cimg::keyPAGEUP)) {
 					stopZ += 1;
-					if(size_t(stopZ) >= layers.size()) {
+					if(static_cast<size_t>(stopZ) >= layers.size()) {
 						stopZ	= layers.size() - 1;
 					}
 				}

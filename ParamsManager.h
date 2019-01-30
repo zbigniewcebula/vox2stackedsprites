@@ -85,12 +85,29 @@ class ParamsManager {
 		}
 
 		void printHelp() {
-			cout	<< "Usage: vox2stackedsprites INPUT_FILE [OPTION [VALUE]]\n"
+			cout	<< "Usage: vox2ss [OPTION [VALUE]]\n\n"
 					<< "Break up VOX file into separated PNG files as layers along Z-axis\n\n"
 					<< "Available options:\n";
 			printList();
-			cout	<< "\n\nFor more visit: https://github.com/zbigniewcebula/vox2stackedsprites"
+			cout	<< "\n\n\nFor more visit: https://github.com/zbigniewcebula/vox2stackedsprites\n"
 					<< endl;
+		}
+
+		void printHelpTileSize() {
+			cout	<< "Usage: vox2ss -i Output.vox -o sheet.png -ts 32\n\n"
+					<< "===== HELP FOR -ts FLAG =====\n"
+					<< "Let's assume that we have image \"sheet.png\" with size of 512x32\n"
+					<< "	that means there is 16 sprites, one for each layer of Z level (32 * 16 = 512).\n"
+					<< "Vox2ss will load whole image, chop it into 16 smaller parts and treat every part as layer file.\n"
+					<< "Remember that width of image HAVE TO be multiple of given \"-ts\" value\n"
+					<< "	to let vox2ss split it without problems, also \"-ts\" value cannot be smaller than 1.\n"
+					<< "	Value of image width is going to generate \"flat\" model of Z height equal to 1.\n"
+					<< "Size of tile is limited to 126 due to VOX format.\n"
+					<< "This flag HAVE TO be used with \"-r\" that reverses process and uses images to generate VOX\n"
+					<< "	and also \"-o\" flag is mandatory to specify input file of sheet to get data from.\n"
+
+					<< "\n\nFor more visit: https://github.com/zbigniewcebula/vox2stackedsprites\n"
+			<< endl;
 		}
 
 		bool process(int argc, char** argv) {
@@ -106,6 +123,9 @@ class ParamsManager {
 						return false;
 					} else if((*lastParam) == "-h") {
 						printHelp();
+						return false;
+					} else if((*lastParam) == "-hts") {
+						printHelpTileSize();
 						return false;
 					} else if((*lastParam) == "-f"
 						or (*lastParam) == "-r"

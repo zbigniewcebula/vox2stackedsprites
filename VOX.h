@@ -8,6 +8,7 @@
 
 using namespace std;
 typedef uint8_t		uchar;
+typedef uint16_t	ushort;
 typedef uint32_t	uint;
 
 class vec4 {
@@ -29,7 +30,7 @@ class vec4 {
 			uint	rawInt;
 		};
 
-		vec4(unsigned char R = 0, unsigned char G = 0, unsigned char B = 0, unsigned char A = 0)
+		vec4(uchar R = 0, uchar G = 0, uchar B = 0, uchar A = 0)
 			:	r(R), g(G), b(B), a(A)
 		{}
 		vec4(const vec4& org)
@@ -38,6 +39,19 @@ class vec4 {
 		vec4(uint value)
 			:	rawInt(value)
 		{}
+
+		//Methods
+		void Set(uchar R, uchar G, uchar B, uchar A) {
+			r	= R;
+			G	= G;
+			B	= B;
+			A	= A;
+		}
+		void Set(uchar R, uchar G, uchar B) {
+			r	= R;
+			G	= G;
+			B	= B;
+		}
 
 		//Assigment
 		vec4& operator=(const vec4& org) {
@@ -69,15 +83,15 @@ class vec4 {
 		}
 
 		//Comparation
-		bool operator==(vec4& cmp) const {
+		inline bool operator==(vec4& cmp) const {
 			return rawInt == cmp.rawInt;
 		}
-		bool operator!=(vec4& cmp) const {
+		inline bool operator!=(vec4& cmp) const {
 			return rawInt not_eq cmp.rawInt;
 		}
 
 		//Effects
-		vec4 operator ~() const {
+		inline vec4 operator ~() const {
 			return vec4(compl rawInt);
 		}
 
@@ -124,10 +138,10 @@ vector<vec4> operator,(vector<vec4>& a, vec4& add) {
 	lst.emplace_back(add.rawInt);
 	return lst;
 }
-vector<vec4> operator+(vector<vec4>& a, vector<vec4>& b) {
+inline vector<vec4> operator+(vector<vec4>& a, vector<vec4>& b) {
 	return (a, b);
 }
-vector<vec4> operator+(vector<vec4>& a, vec4& add) {
+inline vector<vec4> operator+(vector<vec4>& a, vec4& add) {
 	return (a, add);
 }
 
@@ -138,9 +152,7 @@ class VOXModel {
 		static constexpr const int ID_VOX		= 0x20584F56;	//VOX 
 
 		//
-		int			sizeX		= 0;
-		int			sizeY		= 0;
-		int			sizeZ		= 0;
+		vec4		size;
 		
 		int			numVoxels	= 0;
 		
@@ -154,9 +166,7 @@ class VOXModel {
 		}
 		
 		VOXModel() : 
-			sizeX(0), sizeY(0), sizeZ(0),
-			numVoxels(0), voxels(nullptr),
-			version(0)
+			size(0, 0, 0), numVoxels(0), voxels(nullptr), version(0)
 		{}
 		
 		inline bool Load(string path) {
@@ -185,23 +195,21 @@ class VOXModel {
 		}
 
 		constexpr bool IsEmpty() const {
-			return sizeX == 0 and sizeY == 0 and sizeZ == 0;
+			return size.x == 0 and size.y == 0 and size.z == 0;
 		}
 
 		void SetSize(int x, int y, int z) {
-			sizeX		= x;
-			sizeY		= y;
-			sizeZ		= z;
+			size.Set(x, y, z);
 			numVoxels	= 0;
 			version		= MV_VERSION;
 
 			if(voxels not_eq nullptr) {
 				delete[]	voxels;
 			}
-			voxels	= new vec4[sizeX * sizeY * sizeZ];
+			voxels	= new vec4[size.x * size.y * size.z];
 		}
 
-		unsigned char VoxelColorID(int x, int y, int z) {
+		uchar VoxelColorID(int x, int y, int z) const {
 			for(int i = 0; i < numVoxels; ++i) {
 				vec4&	v = voxels[i];
 				if(v.x == x and v.y == y and v.z == z) {
@@ -212,9 +220,9 @@ class VOXModel {
 		}
 
 		void SetVoxel(int x, int y, int z, int idx) {
-			if(x > -1 and x < sizeX
-			and y > -1 and y < sizeY
-			and z > -1 and z < sizeZ
+			if(x > -1 and x < size.x
+			and y > -1 and y < size.y
+			and z > -1 and z < size.z
 			) {
 				if(numVoxels > 0) {
 					for(int i = 0; i < numVoxels; ++i) {
@@ -225,28 +233,19 @@ class VOXModel {
 						}
 					}
 				}
-				voxels[numVoxels].w	= idx;
-				voxels[numVoxels].x	= x;
-				voxels[numVoxels].y	= y;
-				voxels[numVoxels].z	= z;
+				voxels[numVoxels].Set(x, y, z, idx);
 				++numVoxels;
 			}
 		}
 
 		void SetPaletteColor(int index, uchar r, uchar g, uchar b, uchar a = 255) {
 			if(index > -1 and index < 256) {
-				palette[index].r	= r;
-				palette[index].g	= g;
-				palette[index].b	= b;
-				palette[index].a	= a;
+				palette[index].Set(r, g, b, a);
 			}
 		}
 		void SetPaletteColor(int index, const vec4& clr) {
 			if(index > -1 and index < 256) {
-				palette[index].r	= clr.r;
-				palette[index].g	= clr.g;
-				palette[index].b	= clr.b;
-				palette[index].a	= clr.a;
+				palette[index]	= clr;
 			}
 		}
 		vec4& PaletteColor(int index) {
@@ -256,8 +255,8 @@ class VOXModel {
 			return palette[index];
 		}
 
-		uint FindPaletteColorIndex(uchar r, uchar g, uchar b, uchar a) const {
-			for(uint i = 0; i < 256; ++i) {
+		ushort FindPaletteColorIndex(uchar r, uchar g, uchar b, uchar a) const {
+			for(ushort i = 0; i < 256; ++i) {
 				if(palette[i].r == r
 				and	palette[i].g == g
 				and	palette[i].b == b
@@ -266,9 +265,9 @@ class VOXModel {
 					 return i;
 				}
 			}
-			return 0xFFFFFFFF;
+			return 0xFFFF;
 		}
-		inline uint FindPaletteColorIndex(const vec4& clr) {
+		inline ushort FindPaletteColorIndex(const vec4& clr) {
 			return FindPaletteColorIndex(clr.r, clr.g, clr.b, clr.a);
 		}
 
@@ -289,42 +288,37 @@ class VOXModel {
 
 			//Headers
 			hFile.write("VOX ", 4);
-			hFile.write((char*)&version, 4);
+			hFile.write(reinterpret_cast<char*>(&version), 4);
 			hFile.write("MAIN", 4);
 			hFile.write("\0\0\0\0", 4);
 			chunkSize	= numVoxels * sizeof(vec4) + 0x434;	
-			hFile.write((char*)&chunkSize, 4);
+			hFile.write(reinterpret_cast<char*>(&chunkSize), 4);
 
 			hFile.write("SIZE", 4);
 			chunkSize	= 12;
-			hFile.write((char*)&chunkSize, 4);
+			hFile.write(reinterpret_cast<char*>(&chunkSize), 4);
 			hFile.write("\0\0\0\0", 4);
-			hFile.write((char*)&sizeX, 4);
-			hFile.write((char*)&sizeY, 4);
-			hFile.write((char*)&sizeZ, 4);
+			hFile.write(reinterpret_cast<char*>(size.raw), 12);
 
 			//Voxels
 			hFile.write("XYZI", 4);
-			chunkSize	= 4 + (numVoxels * sizeof(vec4));
-			hFile.write((char*)&chunkSize, 4);	
+			chunkSize	= 4 + numVoxels * sizeof(vec4);
+			hFile.write(reinterpret_cast<char*>(&chunkSize), 4);	
 			hFile.write("\0\0\0\0", 4);
-			hFile.write((char*)&numVoxels, 4);
+			hFile.write(reinterpret_cast<char*>(&numVoxels), 4);
 			
 			for(int i = 0; i < numVoxels; ++i) {
-				hFile.write((char*)&voxels[i].x, 1);
-				hFile.write((char*)&voxels[i].y, 1);
-				hFile.write((char*)&voxels[i].z, 1);
-				hFile.write((char*)&voxels[i].w, 1);
+				hFile.write(reinterpret_cast<char*>(voxels[i].raw), 4);
 			}
 
 			//Palette
 			hFile.write("RGBA", 4);
 			chunkSize	= 0x400;
-			hFile.write((char*)&chunkSize, 4);
+			hFile.write(reinterpret_cast<char*>(&chunkSize), 4);
 			hFile.write("\0\0\0\0", 4);
 
 			for(int i = 0; i < 256; ++i) {
-				hFile.write((char*)&palette[i], 4);
+				hFile.write(reinterpret_cast<char*>(palette[i].raw), 4);
 			}
 
 			hFile.flush();
@@ -334,13 +328,13 @@ class VOXModel {
 		}
 
 		constexpr int SizeX() const {
-			return sizeX;
+			return size.x;
 		}
 		constexpr int SizeY() const {
-			return sizeY;
+			return size.y;
 		}
 		constexpr int SizeZ() const {
-			return sizeZ;
+			return size.z;
 		}
 		constexpr int Version() const {
 			return version;
@@ -376,11 +370,9 @@ class VOXModel {
 				long int	end;
 
 				void ReadFromFile(ifstream& hFile) {
-					hFile.read((char*)&id,				4);
-					hFile.read((char*)&contentSize,		4);
-					hFile.read((char*)&childrenSize,	4);
+					hFile.read(reinterpret_cast<char*>(this), 12);
 
-					end	= int(hFile.tellg()) + contentSize + childrenSize;
+					end	= static_cast<int>(hFile.tellg()) + contentSize + childrenSize;
 				}
 		};
 
@@ -392,20 +384,20 @@ class VOXModel {
 			numVoxels	= 0;
 			version		= 0;
 			
-			sizeX = sizeY = sizeZ = 0;
+			size.x = size.y = size.z = 0;
 		}
 		
 		bool ReadModelFile(ifstream& hFile) {
 			//Magic number
 			int magic;
-			hFile.read((char*)&magic, 4);
+			hFile.read(reinterpret_cast<char*>(&magic), 4);
 			if(magic not_eq this->ID_VOX) {
 				cerr	<< "[VOX] Magic number does not match proper one!" << endl;
 				return false;
 			}
 			
 			//Version
-			hFile.read((char*)&version, 4);
+			hFile.read(reinterpret_cast<char*>(&version), 4);
 			if(version not_eq MV_VERSION) {
 				cerr	<< "[VOX] Supported version does not match!" << endl;
 				return false;
@@ -421,7 +413,7 @@ class VOXModel {
 			
 			//Skip content of main chunk
 			if(mainChunk.contentSize > 0) {
-				hFile.seekg(int(hFile.tellg()) + mainChunk.contentSize);
+				hFile.seekg(static_cast<int>(hFile.tellg()) + mainChunk.contentSize);
 			}
 			
 			bool	customPalette	= false;
@@ -433,30 +425,28 @@ class VOXModel {
 				
 				switch(childrenChunk.id) {
 					case(Chunk::Type::SIZE): {
-						hFile.read((char*)&sizeX, 4);
-						hFile.read((char*)&sizeY, 4);
-						hFile.read((char*)&sizeZ, 4);
+						hFile.read(reinterpret_cast<char*>(&size.raw), 12);
 						break;
 					}
 					case(Chunk::Type::XYZI): {
-						hFile.read((char*)&numVoxels, 4);
+						hFile.read(reinterpret_cast<char*>(&numVoxels), 4);
 						if(numVoxels < 0) {
 							cerr	<< "[VOX] Negative voxel number, file broken!" << endl;
 							return false;
 						}
 						if(numVoxels > 0) {
 							voxels	= new vec4[numVoxels];
-							hFile.read((char*)voxels, sizeof(vec4) * numVoxels);
+							hFile.read(reinterpret_cast<char*>(voxels), sizeof(vec4) * numVoxels);
 						}
 						break;
 					}
 					case(Chunk::Type::RGBA): {
 						//Clean old palette
-						memset(palette, 0, sizeof(vec4) * 255);
+						memset(reinterpret_cast<void*>(palette), 0, sizeof(vec4) * 255);
 
 						//Last color is not used, so we only need to read 255 colors
-						hFile.read((char*)(palette + 1), sizeof(vec4) * 255);
-						hFile.seekg(int(hFile.tellg()) + sizeof(vec4));
+						hFile.read(reinterpret_cast<char*>(palette + 1), sizeof(vec4) * 255);
+						hFile.seekg(static_cast<int>(hFile.tellg()) + sizeof(vec4));
 
 						customPalette	= true;
 					}
@@ -479,9 +469,8 @@ class VOXModel {
 						break;
 					}
 					default: {
-						cerr	<< "[VOX] Unknown header (at 0x" << hex << hFile.tellg()
-								<< "), ignoring!" << dec
-						<< endl;
+						cerr	<< "[VOX] Unknown header (at 0x" << hex << hFile.tellg() << dec << "), ignoring!"
+								<< endl;
 						break;
 					}
 				}
@@ -495,9 +484,9 @@ class VOXModel {
 		}
 
 		constexpr void SetDefaultPalette() {
-			memcpy(palette, defaultPalette, sizeof(vec4) * 255);
+			memcpy(reinterpret_cast<void*>(palette), defaultPalette, sizeof(vec4) * 255);
 		}
-		constexpr static uint defaultPalette[256] = {
+		constexpr static const uint defaultPalette[256] = {
 			//0 => Unused color
 			0x00000000, 0xffffffff, 0xffccffff, 0xff99ffff, 0xff66ffff, 0xff33ffff, 0xff00ffff, 0xffffccff,
 			0xffccccff, 0xff99ccff, 0xff66ccff, 0xff33ccff, 0xff00ccff, 0xffff99ff, 0xffcc99ff, 0xff9999ff,

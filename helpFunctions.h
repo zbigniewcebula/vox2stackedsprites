@@ -1,6 +1,7 @@
 #ifndef __HELP_FUNC__
 #define __HELP_FUNC__
 
+#include <vector>
 #include <string>
 #include <algorithm>
 
@@ -74,6 +75,13 @@ void processingBar(unsigned int value, unsigned int max) {
 		cout	<< '|';
 	}
 	cout << flush;
+}
+
+template<class T> void wipeVector(vector<T*>& list) {
+	for(T* element : list) {
+		delete	element;
+	}
+	list.clear();
 }
 
 #endif
