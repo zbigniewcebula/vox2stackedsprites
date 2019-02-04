@@ -152,7 +152,9 @@ class VOXModel {
 		static constexpr const int ID_VOX		= 0x20584F56;	//VOX 
 
 		//
-		vec4		size;
+		int			sizeX;
+		int			sizeY;
+		int			sizeZ;
 		
 		int			numVoxels	= 0;
 		
@@ -166,7 +168,7 @@ class VOXModel {
 		}
 		
 		VOXModel() : 
-			size(0, 0, 0), numVoxels(0), voxels(nullptr), version(0)
+			sizeX(0), sizeY(0), sizeZ(0), numVoxels(0), voxels(nullptr), version(0)
 		{}
 		
 		inline bool Load(string path) {
@@ -195,18 +197,18 @@ class VOXModel {
 		}
 
 		constexpr bool IsEmpty() const {
-			return size.x == 0 and size.y == 0 and size.z == 0;
+			return sizeX == 0 and sizeY == 0 and sizeZ == 0;
 		}
 
 		void SetSize(int x, int y, int z) {
-			size.Set(x, y, z);
+			sizeX		= sizeY = sizeZ = 0;
 			numVoxels	= 0;
 			version		= MV_VERSION;
 
 			if(voxels not_eq nullptr) {
 				delete[]	voxels;
 			}
-			voxels	= new vec4[size.x * size.y * size.z];
+			voxels	= new vec4[sizeX * sizeY * sizeZ];
 		}
 
 		uchar VoxelColorID(int x, int y, int z) const {
@@ -220,9 +222,9 @@ class VOXModel {
 		}
 
 		void SetVoxel(int x, int y, int z, int idx) {
-			if(x > -1 and x < size.x
-			and y > -1 and y < size.y
-			and z > -1 and z < size.z
+			if(x > -1 and x < sizeX
+			and y > -1 and y < sizeY
+			and z > -1 and z < sizeZ
 			) {
 				if(numVoxels > 0) {
 					for(int i = 0; i < numVoxels; ++i) {
@@ -298,7 +300,9 @@ class VOXModel {
 			chunkSize	= 12;
 			hFile.write(reinterpret_cast<char*>(&chunkSize), 4);
 			hFile.write("\0\0\0\0", 4);
-			hFile.write(reinterpret_cast<char*>(size.raw), 12);
+			hFile.write(reinterpret_cast<char*>(&sizeX), 4);
+			hFile.write(reinterpret_cast<char*>(&sizeY), 4);
+			hFile.write(reinterpret_cast<char*>(&sizeZ), 4);
 
 			//Voxels
 			hFile.write("XYZI", 4);
@@ -328,13 +332,13 @@ class VOXModel {
 		}
 
 		constexpr int SizeX() const {
-			return size.x;
+			return sizeX;
 		}
 		constexpr int SizeY() const {
-			return size.y;
+			return sizeY;
 		}
 		constexpr int SizeZ() const {
-			return size.z;
+			return sizeZ;
 		}
 		constexpr int Version() const {
 			return version;
@@ -384,7 +388,7 @@ class VOXModel {
 			numVoxels	= 0;
 			version		= 0;
 			
-			size.x = size.y = size.z = 0;
+			sizeX = sizeY = sizeZ = 0;
 		}
 		
 		bool ReadModelFile(ifstream& hFile) {
@@ -425,7 +429,9 @@ class VOXModel {
 				
 				switch(childrenChunk.id) {
 					case(Chunk::Type::SIZE): {
-						hFile.read(reinterpret_cast<char*>(&size.raw), 12);
+						hFile.read(reinterpret_cast<char*>(&sizeX), 4);
+						hFile.read(reinterpret_cast<char*>(&sizeY), 4);
+						hFile.read(reinterpret_cast<char*>(&sizeZ), 4);
 						break;
 					}
 					case(Chunk::Type::XYZI): {

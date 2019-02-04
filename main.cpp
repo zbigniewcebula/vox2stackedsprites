@@ -59,18 +59,22 @@ int main(int argc, char** argv) {
 	bool			outputReversed	= paramManager.getValueOf("-r") not_eq "";
 	bool			displayResult	= paramManager.getValueOf("-d") != "";
 
-	int	tileSize		= stoi(paramManager.getValueOf("-ts"));
-	//Naive limit
-	if(tileSize > 126) {	//Limit forced by MagicaVoxel VOX format
-		cerr	<< "Size of tile is too big! Aborting..." << endl;
-		return 1;
-	}
-	if(tileSize < 0) {
-		cerr	<< "Size cannot be negative number! Aborting..." << endl;
-		return 1;
-	} else if(tileSize < 1) {
-		cerr	<< "Size of tile is too small! Aborting..." << endl;
-		return 1;
+	int	tileSize		= 0;
+
+	if(paramManager.getValueOf("-ts") != "") {
+		tileSize	= stoi(paramManager.getValueOf("-ts"));
+		//Naive limit
+		if(tileSize > 126) {	//Limit forced by MagicaVoxel VOX format
+			cerr	<< "Size of tile is too big! Aborting..." << endl;
+			return 1;
+		}
+		if(tileSize < 0) {
+			cerr	<< "Size cannot be negative number! Aborting..." << endl;
+			return 1;
+		} else if(tileSize < 1) {
+			cerr	<< "Size of tile is too small! Aborting..." << endl;
+			return 1;
+		}
 	}
 
 	//Formats
@@ -375,8 +379,8 @@ int main(int argc, char** argv) {
 				delete	layers.front();
 				layers.erase(layers.begin());
 			}
-			processingBar(vox.SizeZ(), vox.SizeZ());
 		}
+		processingBar(vox.SizeZ(), vox.SizeZ());
 	}
 
 	cout	<< "\nDone (" << vox.SizeZ() << " layers)!" << endl;
